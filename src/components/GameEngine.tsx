@@ -79,22 +79,33 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Initialize game
   useEffect(() => {
-    if (!canvasRef.current) return;
+    console.log("Game initializing...");
+    if (!canvasRef.current) {
+      console.error("Canvas ref is null!");
+      return;
+    }
     
     const ctx = canvasRef.current.getContext('2d');
-    if (!ctx) return;
+    if (!ctx) {
+      console.error("Canvas context is null!");
+      return;
+    }
     
+    console.log("Generating level...");
     // Generate level
     generateLevel();
     
+    console.log("Starting game loop...");
     // Start game loop
     startGameLoop();
     
+    console.log("Setting up event listeners...");
     // Handle keyboard events
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
     
     return () => {
+      console.log("Cleaning up game resources...");
       cancelAnimationFrame(requestRef.current);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
@@ -104,6 +115,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Handle game restart
   const restartGame = () => {
+    console.log("Restarting game...");
     setMoney(1000);
     setScore(0);
     setIsGameOver(false);
@@ -119,6 +131,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Generate game level with platforms, coins, powerups, and enemies
   const generateLevel = () => {
+    console.log("Generating game level...");
     const platforms = [
       // Ground platform
       { x: 0, y: GAME_HEIGHT - 20, width: GAME_WIDTH * 3, height: 20 }
@@ -199,6 +212,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       height: 60 
     };
     
+    console.log("Level generation complete");
+    
     // Update game state
     setGameState(prev => ({
       ...prev,
@@ -225,28 +240,37 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   const handleKeyDown = (e: KeyboardEvent) => {
     if (isPaused || isGameOver) return;
     
+    console.log("Key down:", e.key);
+    
     // Game controls
     switch(e.key) {
       case 'ArrowLeft':
         keys.current.left = true;
+        console.log("Left key pressed, keys state:", keys.current);
         break;
       case 'ArrowRight':
         keys.current.right = true;
+        console.log("Right key pressed, keys state:", keys.current);
         break;
       case 'ArrowUp':
         keys.current.up = true;
+        console.log("Up key pressed, keys state:", keys.current);
         break;
       case 'ArrowDown':
         keys.current.down = true;
+        console.log("Down key pressed, keys state:", keys.current);
         break;
       case 'p':
       case 'P':
         setIsPaused(true);
+        console.log("Game paused");
         break;
     }
   };
   
   const handleKeyUp = (e: KeyboardEvent) => {
+    console.log("Key up:", e.key);
+    
     // Game controls
     switch(e.key) {
       case 'ArrowLeft':
@@ -262,17 +286,26 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         keys.current.down = false;
         break;
     }
+    
+    console.log("Keys state after keyup:", keys.current);
   };
   
   // Start game loop
   const startGameLoop = () => {
+    console.log("Game loop starting...");
     let lastTime = 0;
     
     const animate = (time: number) => {
-      if (!canvasRef.current) return;
+      if (!canvasRef.current) {
+        console.error("Canvas ref lost during animation loop");
+        return;
+      }
       
       const ctx = canvasRef.current.getContext('2d');
-      if (!ctx) return;
+      if (!ctx) {
+        console.error("Canvas context lost during animation loop");
+        return;
+      }
       
       // Calculate delta time for smooth animations
       const deltaTime = lastTime ? (time - lastTime) / 16 : 1;
@@ -293,6 +326,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     };
     
     requestRef.current = requestAnimationFrame(animate);
+    console.log("Animation frame requested");
   };
   
   // Update game state
@@ -318,11 +352,18 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     setGameState(prev => {
       const player = { ...prev.player };
       
+      // Debug player state before update
+      console.log("Player before update:", 
+        { x: player.x, y: player.y, vx: player.velocityX, vy: player.velocityY, isJumping: player.isJumping });
+      console.log("Keys state:", keys.current);
+      
       // Horizontal movement
       if (keys.current.left) {
         player.velocityX = -5 * deltaTime;
+        console.log("Moving left, new velocityX:", player.velocityX);
       } else if (keys.current.right) {
         player.velocityX = 5 * deltaTime;
+        console.log("Moving right, new velocityX:", player.velocityX);
       } else {
         // Apply friction
         player.velocityX *= 0.8;
@@ -332,12 +373,14 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       if (keys.current.up && !player.isJumping) {
         player.velocityY = -15;
         player.isJumping = true;
+        console.log("Jumping, new velocityY:", player.velocityY);
       }
       
       // Ducking
       player.isDucking = keys.current.down;
       if (player.isDucking) {
         player.height = 30; // Reduce height when ducking
+        console.log("Ducking, height reduced");
       } else {
         player.height = 60; // Normal height
       }
@@ -348,6 +391,10 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       // Update position
       player.x += player.velocityX;
       player.y += player.velocityY;
+      
+      // Debug player state after update
+      console.log("Player after update:", 
+        { x: player.x, y: player.y, vx: player.velocityX, vy: player.velocityY, isJumping: player.isJumping });
       
       // Boundary checks
       if (player.x < 0) player.x = 0;
@@ -429,6 +476,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
           player.velocityY = 0;
           player.isJumping = false;
           isOnPlatform = true;
+          console.log("Player landed on platform");
         }
       });
       
@@ -444,6 +492,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
           newScore += coin.value;
           setMoney(newMoney);
           setScore(newScore);
+          console.log(`Coin collected! Money: ${newMoney}, Score: ${newScore}`);
         }
       });
       
@@ -455,6 +504,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
           newScore += powerup.value;
           setMoney(newMoney);
           setScore(newScore);
+          console.log(`Powerup collected! Money: ${newMoney}, Score: ${newScore}`);
         }
       });
       
@@ -464,6 +514,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
           enemies[index] = { ...enemy, hit: true };
           newMoney -= enemy.value;
           setMoney(newMoney);
+          console.log(`Hit enemy! Money reduced to: ${newMoney}`);
         }
       });
       
@@ -486,6 +537,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     if (gameState.finishLine && checkObjectCollision(gameState.player, gameState.finishLine)) {
       setIsGameOver(true);
       setIsVictory(true);
+      console.log("Player reached finish line! Victory!");
     }
   };
   
@@ -495,12 +547,14 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     if (gameState.player.y > GAME_HEIGHT) {
       setIsGameOver(true);
       setIsVictory(false);
+      console.log("Game over: Player fell into a pit");
     }
     
     // Check if player has no money left
     if (money <= 0) {
       setIsGameOver(true);
       setIsVictory(false);
+      console.log("Game over: Player has no money left");
     }
   };
   
@@ -788,6 +842,15 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.font = "16px Arial";
     ctx.textAlign = "center";
     ctx.fillText("II", GAME_WIDTH - 30, 32);
+    
+    // Debug info in development
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(10, GAME_HEIGHT - 30, 300, 20);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "left";
+    const player = gameState.player;
+    ctx.fillText(`x:${Math.round(player.x)} y:${Math.round(player.y)} vx:${player.velocityX.toFixed(2)} vy:${player.velocityY.toFixed(2)} jump:${player.isJumping}`, 15, GAME_HEIGHT - 15);
   };
 
   return (
