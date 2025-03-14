@@ -53,7 +53,7 @@ const GameLegend: React.FC<GameLegendProps> = ({ className = "" }) => {
       <div className="mt-4">
         <div className="bg-white/50 rounded-lg p-3 text-center">
           <p className="mb-2">
-            <strong>Controls:</strong> Use arrow keys to move ← →, jump ↑, and duck ↓. Press P to pause.
+            <strong>Controls:</strong> Use arrow keys ← → to move, ↑ to jump . Press P to pause.
           </p>
           <p>
             <strong>Goal:</strong> Collect coins, avoid debt, and reach the finish line with positive money!
