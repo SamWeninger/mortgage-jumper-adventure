@@ -61,10 +61,6 @@ const MainMenu: React.FC = () => {
                 <span>Jump over obstacles</span>
               </li>
               <li className="flex items-center">
-                <span className="inline-block bg-gray-200 px-2 py-1 rounded mr-2">↓</span>
-                <span>Duck under barriers</span>
-              </li>
-              <li className="flex items-center">
                 <span className="inline-block bg-gray-200 px-2 py-1 rounded mr-2">P</span>
                 <span>Pause game</span>
               </li>

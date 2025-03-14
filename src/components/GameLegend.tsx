@@ -40,13 +40,7 @@ const GameLegend: React.FC<GameLegendProps> = ({ className = "" }) => {
             </div>
             <span>Market Crashes (-$1,000)</span>
           </div>
-          
-          <div className="flex items-center space-x-2">
-            <div className="bg-gray-700 p-1 rounded-full">
-              <Clock className="h-4 w-4 text-white" />
-            </div>
-            <span>100 second time limit</span>
-          </div>
+
         </div>
       </div>
       
