@@ -409,10 +409,14 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   // Update camera position to follow player
   const updateCamera = () => {
     setGameState(prev => {
+      // FIX: Calculate camera position correctly
       const camera = { ...prev.camera };
       
       // Camera follows player with some margin
-      camera.x = prev.player.x - GAME_WIDTH / 3;
+      const targetCameraX = Math.max(0, prev.player.x - GAME_WIDTH / 3);
+      
+      // Add camera smoothing - gradually move toward target position
+      camera.x = camera.x + (targetCameraX - camera.x) * 0.1;
       
       // Camera boundaries
       if (camera.x < 0) camera.x = 0;
@@ -426,6 +430,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         mid: { x: camera.x * 0.5 },
         near: { x: camera.x * 0.8 }
       };
+      
+      // Debug camera position
+      console.log("Camera position:", camera.x, "Player position:", prev.player.x);
       
       return { ...prev, camera, background };
     });
@@ -568,7 +575,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     
     // Save context for camera transformation
     ctx.save();
-    ctx.translate(-gameState.camera.x, 0);
+    
+    // Apply camera transform - FIXED: Use Math.floor to prevent subpixel rendering issues
+    ctx.translate(-Math.floor(gameState.camera.x), 0);
     
     // Draw platforms
     drawPlatforms(ctx);
@@ -605,10 +614,10 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     
-    // Draw mountains in the far background
+    // Draw mountains in the far background - FIXED: Use Math.floor for positions
     ctx.fillStyle = "#9E9E9E";
     for (let i = 0; i < 5; i++) {
-      const x = (i * 200) - (gameState.background.far.x % 200);
+      const x = Math.floor((i * 200) - (gameState.background.far.x % 200));
       const height = 100 + Math.random() * 50;
       
       ctx.beginPath();
@@ -618,21 +627,20 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       ctx.fill();
     }
     
-    // Draw hills in the mid background
+    // Draw hills in the mid background - FIXED: Use Math.floor for positions
     ctx.fillStyle = "#A5D6A7";
     for (let i = 0; i < 7; i++) {
-      const x = (i * 150) - (gameState.background.mid.x % 150);
-      const height = 60 + Math.random() * 30;
+      const x = Math.floor((i * 150) - (gameState.background.mid.x % 150));
       
       ctx.beginPath();
       ctx.arc(x, GAME_HEIGHT + 30, 80, Math.PI, 0, false);
       ctx.fill();
     }
     
-    // Draw clouds
+    // Draw clouds - FIXED: Use Math.floor for positions
     ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
     for (let i = 0; i < 8; i++) {
-      const x = (i * 180) - (gameState.background.far.x % 180);
+      const x = Math.floor((i * 180) - (gameState.background.far.x % 180));
       const y = 40 + Math.random() * 50;
       
       // Cloud shape
@@ -653,16 +661,19 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       gradient.addColorStop(1, "#5D4037"); // Darker brown
       
       ctx.fillStyle = gradient;
-      ctx.fillRect(platform.x, platform.y, platform.width, platform.height);
+      ctx.fillRect(Math.floor(platform.x), Math.floor(platform.y), 
+                  Math.floor(platform.width), Math.floor(platform.height));
       
       // Platform top edge
       ctx.fillStyle = "#A1887F";
-      ctx.fillRect(platform.x, platform.y, platform.width, 5);
+      ctx.fillRect(Math.floor(platform.x), Math.floor(platform.y), 
+                   Math.floor(platform.width), 5);
       
       // Grass on top of ground platforms
       if (platform.y === GAME_HEIGHT - 20) {
         ctx.fillStyle = "#66BB6A";
-        ctx.fillRect(platform.x, platform.y - 2, platform.width, 5);
+        ctx.fillRect(Math.floor(platform.x), Math.floor(platform.y) - 2, 
+                     Math.floor(platform.width), 5);
       }
     });
   };
@@ -674,20 +685,22 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         // Coin circle
         ctx.fillStyle = "#FFD700"; // Gold
         ctx.beginPath();
-        ctx.arc(coin.x + coin.width / 2, coin.y + coin.height / 2, coin.width / 2, 0, Math.PI * 2);
+        ctx.arc(Math.floor(coin.x + coin.width / 2), Math.floor(coin.y + coin.height / 2), 
+                coin.width / 2, 0, Math.PI * 2);
         ctx.fill();
         
         // Coin highlight
         ctx.fillStyle = "#FFFFFF"; // White
         ctx.beginPath();
-        ctx.arc(coin.x + coin.width / 3, coin.y + coin.height / 3, coin.width / 6, 0, Math.PI * 2);
+        ctx.arc(Math.floor(coin.x + coin.width / 3), Math.floor(coin.y + coin.height / 3), 
+                coin.width / 6, 0, Math.PI * 2);
         ctx.fill();
         
         // Coin dollar sign
         ctx.fillStyle = "#8D6E63";
         ctx.font = "bold 14px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("$", coin.x + coin.width / 2, coin.y + coin.height / 1.8 + 4);
+        ctx.fillText("$", Math.floor(coin.x + coin.width / 2), Math.floor(coin.y + coin.height / 1.8 + 4));
       }
     });
   };
@@ -698,18 +711,21 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       if (!powerup.collected) {
         // Mystery box
         ctx.fillStyle = "#673AB7"; // Purple
-        ctx.fillRect(powerup.x, powerup.y, powerup.width, powerup.height);
+        ctx.fillRect(Math.floor(powerup.x), Math.floor(powerup.y), 
+                     Math.floor(powerup.width), Math.floor(powerup.height));
         
         // Question mark
         ctx.fillStyle = "#FFFFFF";
         ctx.font = "bold 20px Arial";
         ctx.textAlign = "center";
-        ctx.fillText("?", powerup.x + powerup.width / 2, powerup.y + powerup.height / 1.5);
+        ctx.fillText("?", Math.floor(powerup.x + powerup.width / 2), 
+                     Math.floor(powerup.y + powerup.height / 1.5));
         
         // Box border
         ctx.strokeStyle = "#FFFFFF";
         ctx.lineWidth = 2;
-        ctx.strokeRect(powerup.x, powerup.y, powerup.width, powerup.height);
+        ctx.strokeRect(Math.floor(powerup.x), Math.floor(powerup.y), 
+                       Math.floor(powerup.width), Math.floor(powerup.height));
       }
     });
   };
@@ -721,39 +737,41 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         if (enemy.type === 'luxury') {
           // Luxury Purchase (bag with $ sign)
           ctx.fillStyle = "#FF5722"; // Deep orange
-          ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+          ctx.fillRect(Math.floor(enemy.x), Math.floor(enemy.y), 
+                       Math.floor(enemy.width), Math.floor(enemy.height));
           
           // Bag handle
           ctx.strokeStyle = "#FFFFFF";
           ctx.lineWidth = 2;
           ctx.beginPath();
-          ctx.moveTo(enemy.x + 10, enemy.y);
-          ctx.lineTo(enemy.x + 10, enemy.y - 10);
-          ctx.lineTo(enemy.x + enemy.width - 10, enemy.y - 10);
-          ctx.lineTo(enemy.x + enemy.width - 10, enemy.y);
+          ctx.moveTo(Math.floor(enemy.x + 10), Math.floor(enemy.y));
+          ctx.lineTo(Math.floor(enemy.x + 10), Math.floor(enemy.y - 10));
+          ctx.lineTo(Math.floor(enemy.x + enemy.width - 10), Math.floor(enemy.y - 10));
+          ctx.lineTo(Math.floor(enemy.x + enemy.width - 10), Math.floor(enemy.y));
           ctx.stroke();
           
           // Dollar sign
           ctx.fillStyle = "#FFFFFF";
           ctx.font = "bold 20px Arial";
           ctx.textAlign = "center";
-          ctx.fillText("$", enemy.x + enemy.width / 2, enemy.y + enemy.height / 1.5);
+          ctx.fillText("$", Math.floor(enemy.x + enemy.width / 2), 
+                       Math.floor(enemy.y + enemy.height / 1.5));
         } else if (enemy.type === 'crash') {
           // Market Crash (down arrow)
           ctx.fillStyle = "#F44336"; // Red
           
           // Arrow body
           ctx.beginPath();
-          ctx.moveTo(enemy.x + enemy.width / 2, enemy.y + enemy.height); // Arrow point
-          ctx.lineTo(enemy.x, enemy.y); // Left corner
-          ctx.lineTo(enemy.x + enemy.width, enemy.y); // Right corner
+          ctx.moveTo(Math.floor(enemy.x + enemy.width / 2), Math.floor(enemy.y + enemy.height)); // Arrow point
+          ctx.lineTo(Math.floor(enemy.x), Math.floor(enemy.y)); // Left corner
+          ctx.lineTo(Math.floor(enemy.x + enemy.width), Math.floor(enemy.y)); // Right corner
           ctx.closePath();
           ctx.fill();
           
           // Arrow stem
           ctx.fillRect(
-            enemy.x + enemy.width / 2 - 5,
-            enemy.y - 20,
+            Math.floor(enemy.x + enemy.width / 2 - 5),
+            Math.floor(enemy.y - 20),
             10,
             25
           );
@@ -769,11 +787,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       
       // Finish flag
       ctx.fillStyle = "#4CAF50"; // Green
-      ctx.fillRect(x, y, width, height);
+      ctx.fillRect(Math.floor(x), Math.floor(y), Math.floor(width), Math.floor(height));
       
       // Flag pole
       ctx.fillStyle = "#795548"; // Brown
-      ctx.fillRect(x, y, 5, height);
+      ctx.fillRect(Math.floor(x), Math.floor(y), 5, Math.floor(height));
       
       // Checkered pattern
       ctx.fillStyle = "#FFFFFF"; // White
@@ -782,8 +800,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         for (let j = 0; j < width / squareSize; j++) {
           if ((i + j) % 2 === 0) {
             ctx.fillRect(
-              x + j * squareSize + 5,
-              y + i * squareSize,
+              Math.floor(x + j * squareSize + 5),
+              Math.floor(y + i * squareSize),
               squareSize,
               squareSize
             );
@@ -799,23 +817,23 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     
     // Player body
     ctx.fillStyle = "#2196F3"; // Blue
-    ctx.fillRect(x, y, width, height);
+    ctx.fillRect(Math.floor(x), Math.floor(y), Math.floor(width), Math.floor(height));
     
     // Player face (different based on state)
     if (isDucking) {
       // Ducking face
       ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(x + width - 15, y + 5, 10, 5);
+      ctx.fillRect(Math.floor(x + width - 15), Math.floor(y + 5), 10, 5);
     } else if (isJumping) {
       // Jumping face
       ctx.fillStyle = "#FFFFFF";
       ctx.beginPath();
-      ctx.arc(x + width - 10, y + 15, 8, 0, Math.PI * 2);
+      ctx.arc(Math.floor(x + width - 10), Math.floor(y + 15), 8, 0, Math.PI * 2);
       ctx.fill();
     } else {
       // Normal face
       ctx.fillStyle = "#FFFFFF";
-      ctx.fillRect(x + width - 15, y + 15, 10, 5);
+      ctx.fillRect(Math.floor(x + width - 15), Math.floor(y + 15), 10, 5);
     }
   };
   
@@ -843,7 +861,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.textAlign = "center";
     ctx.fillText("II", GAME_WIDTH - 30, 32);
     
-    // Debug info in development
+    // Debug info
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
     ctx.fillRect(10, GAME_HEIGHT - 30, 300, 20);
     ctx.fillStyle = "#FFFFFF";
@@ -851,6 +869,14 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.textAlign = "left";
     const player = gameState.player;
     ctx.fillText(`x:${Math.round(player.x)} y:${Math.round(player.y)} vx:${player.velocityX.toFixed(2)} vy:${player.velocityY.toFixed(2)} jump:${player.isJumping}`, 15, GAME_HEIGHT - 15);
+    
+    // Add camera position debug info
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(10, GAME_HEIGHT - 55, 300, 20);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText(`Camera: ${Math.round(gameState.camera.x)} Keys: L:${keys.current.left} R:${keys.current.right} U:${keys.current.up} D:${keys.current.down}`, 15, GAME_HEIGHT - 40);
   };
 
   return (
