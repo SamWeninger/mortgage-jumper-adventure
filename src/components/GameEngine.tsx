@@ -12,6 +12,14 @@ interface GameEngineProps {
   onExit: () => void;
 }
 
+// Define the finishLine type
+interface FinishLine {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
@@ -42,6 +50,12 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     coins: [] as any[],
     powerups: [] as any[],
     enemies: [] as any[],
+    finishLine: {
+      x: GAME_WIDTH * 3 - 100,
+      y: GAME_HEIGHT - 80,
+      width: 50,
+      height: 60
+    } as FinishLine,
     camera: {
       x: 0,
       y: 0
