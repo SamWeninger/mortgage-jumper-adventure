@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import PauseMenu from './PauseMenu';
@@ -67,8 +68,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       near: { x: 0 }
     },
     collectedCoins: 0,
-    collectedPowerups: 0,
-    gameCompleted: false // New flag to track if the game is completed
+    collectedPowerups: 0
   });
   
   // Use a separate state to trigger re-renders
@@ -327,8 +327,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       camera: { x: 0, y: 0 },
       levelLength: GAME_WIDTH * 3,
       collectedCoins: 0,
-      collectedPowerups: 0,
-      gameCompleted: false // Reset the game completed flag
+      collectedPowerups: 0
     };
     
     // Update state to trigger re-render
@@ -337,8 +336,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Handle keyboard events
   const handleKeyDown = (e: KeyboardEvent) => {
-    // Don't process key events if game is over or completed
-    if (isPaused || isGameOver || gameStateRef.current.gameCompleted) return;
+    if (isPaused || isGameOver) return;
     
     console.log("Key down:", e.key);
     
@@ -461,9 +459,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Update game state
   const updateGameState = (deltaTime: number) => {
-    // Skip updates if game is completed but game over screen hasn't shown yet
-    if (gameStateRef.current.gameCompleted) return;
-    
     // Update player movement
     updatePlayerMovement(deltaTime);
     
@@ -482,9 +477,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Update player movement
   const updatePlayerMovement = (deltaTime: number) => {
-    // Skip movement updates if game is completed
-    if (gameStateRef.current.gameCompleted) return;
-    
     const player = { ...gameStateRef.current.player };
       
     // Debug player state before update
@@ -569,9 +561,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Update enemies
   const updateEnemies = (deltaTime: number) => {
-    // Skip enemy updates if game is completed
-    if (gameStateRef.current.gameCompleted) return;
-    
     const enemies = gameStateRef.current.enemies.map(enemy => {
       if (enemy.type === 'crash') {
         // Market crash enemies move back and forth
@@ -591,9 +580,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Check for collisions
   const checkCollisions = () => {
-    // Skip collision checks if game is completed
-    if (gameStateRef.current.gameCompleted) return;
-    
     const player = { ...gameStateRef.current.player };
     const coins = [...gameStateRef.current.coins];
     const powerups = [...gameStateRef.current.powerups];
@@ -695,38 +681,18 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   const checkFinish = () => {
     if (gameStateRef.current.finishLine && 
         checkObjectCollision(gameStateRef.current.player, gameStateRef.current.finishLine)) {
-      // Set the game completed flag to freeze player movement
-      gameStateRef.current.gameCompleted = true;
-      
-      // Show game over screen
       setIsGameOver(true);
       setIsVictory(true);
       console.log("Player reached finish line! Victory!");
-      
-      // Ensure all key states are reset
-      keys.current = {
-        left: false,
-        right: false,
-        up: false,
-        down: false
-      };
-      
-      // Stop player momentum
-      gameStateRef.current.player.velocityX = 0;
-      gameStateRef.current.player.velocityY = 0;
     }
   };
   
   // Check game over conditions
   const checkGameOver = () => {
-    // Skip game over checks if game is already completed
-    if (gameStateRef.current.gameCompleted) return;
-    
     // Check if player fell into a pit
     if (gameStateRef.current.player.y > GAME_HEIGHT) {
       setIsGameOver(true);
       setIsVictory(false);
-      gameStateRef.current.gameCompleted = true;
       console.log("Game over: Player fell into a pit");
     }
     
@@ -739,7 +705,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     if (calculatedMoney <= 0) {
       setIsGameOver(true);
       setIsVictory(false);
-      gameStateRef.current.gameCompleted = true;
       console.log("Game over: Player has no money left");
     }
   };
@@ -916,3 +881,276 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       if (!powerup.collected) {
         // Mystery box
         ctx.fillStyle = "#673AB7"; // Purple
+        ctx.fillRect(
+          Math.floor(powerup.x), 
+          Math.floor(powerup.y), 
+          Math.floor(powerup.width), 
+          Math.floor(powerup.height)
+        );
+        
+        // Question mark
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 20px Arial";
+        ctx.textAlign = "center";
+        ctx.fillText(
+          "?", 
+          Math.floor(powerup.x + powerup.width / 2), 
+          Math.floor(powerup.y + powerup.height / 1.5)
+        );
+        
+        // Box border
+        ctx.strokeStyle = "#FFFFFF";
+        ctx.lineWidth = 2;
+        ctx.strokeRect(
+          Math.floor(powerup.x), 
+          Math.floor(powerup.y), 
+          Math.floor(powerup.width), 
+          Math.floor(powerup.height)
+        );
+      }
+    });
+  };
+  
+  // Draw enemies
+  const drawEnemies = (ctx: CanvasRenderingContext2D) => {
+    gameStateRef.current.enemies.forEach(enemy => {
+      if (!enemy.hit) {
+        if (enemy.type === 'luxury') {
+          // Luxury Purchase (bag with $ sign)
+          ctx.fillStyle = "#FF5722"; // Deep orange
+          ctx.fillRect(
+            Math.floor(enemy.x), 
+            Math.floor(enemy.y), 
+            Math.floor(enemy.width), 
+            Math.floor(enemy.height)
+          );
+          
+          // Bag handle
+          ctx.strokeStyle = "#FFFFFF";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(Math.floor(enemy.x + 10), Math.floor(enemy.y));
+          ctx.lineTo(Math.floor(enemy.x + 10), Math.floor(enemy.y - 10));
+          ctx.lineTo(Math.floor(enemy.x + enemy.width - 10), Math.floor(enemy.y - 10));
+          ctx.lineTo(Math.floor(enemy.x + enemy.width - 10), Math.floor(enemy.y));
+          ctx.stroke();
+          
+          // Dollar sign
+          ctx.fillStyle = "#FFFFFF";
+          ctx.font = "bold 20px Arial";
+          ctx.textAlign = "center";
+          ctx.fillText(
+            "$", 
+            Math.floor(enemy.x + enemy.width / 2), 
+            Math.floor(enemy.y + enemy.height / 1.5)
+          );
+        } else if (enemy.type === 'crash') {
+          // Market Crash (down arrow)
+          ctx.fillStyle = "#F44336"; // Red
+          
+          // Arrow body
+          ctx.beginPath();
+          ctx.moveTo(Math.floor(enemy.x + enemy.width / 2), Math.floor(enemy.y + enemy.height)); // Arrow point
+          ctx.lineTo(Math.floor(enemy.x), Math.floor(enemy.y)); // Left corner
+          ctx.lineTo(Math.floor(enemy.x + enemy.width), Math.floor(enemy.y)); // Right corner
+          ctx.closePath();
+          ctx.fill();
+          
+          // Arrow stem
+          ctx.fillRect(
+            Math.floor(enemy.x + enemy.width / 2 - 5),
+            Math.floor(enemy.y - 20),
+            10,
+            25
+          );
+        }
+      }
+    });
+  };
+  
+  // Draw finish line
+  const drawFinishLine = (ctx: CanvasRenderingContext2D) => {
+    if (gameStateRef.current.finishLine) {
+      const { x, y, width, height } = gameStateRef.current.finishLine;
+      
+      // Finish flag
+      ctx.fillStyle = "#4CAF50"; // Green
+      ctx.fillRect(
+        Math.floor(x), 
+        Math.floor(y), 
+        Math.floor(width), 
+        Math.floor(height)
+      );
+      
+      // Flag pole
+      ctx.fillStyle = "#795548"; // Brown
+      ctx.fillRect(
+        Math.floor(x), 
+        Math.floor(y), 
+        5, 
+        Math.floor(height)
+      );
+      
+      // Checkered pattern
+      ctx.fillStyle = "#FFFFFF"; // White
+      const squareSize = 10;
+      for (let i = 0; i < height / squareSize; i++) {
+        for (let j = 0; j < width / squareSize; j++) {
+          if ((i + j) % 2 === 0) {
+            ctx.fillRect(
+              Math.floor(x + j * squareSize + 5),
+              Math.floor(y + i * squareSize),
+              squareSize,
+              squareSize
+            );
+          }
+        }
+      }
+    }
+  };
+  
+  // Draw player
+  const drawPlayer = (ctx: CanvasRenderingContext2D) => {
+    const { x, y, width, height, isDucking, isJumping } = gameStateRef.current.player;
+    
+    // Player body
+    ctx.fillStyle = "#2196F3"; // Blue
+    ctx.fillRect(
+      Math.floor(x), 
+      Math.floor(y), 
+      Math.floor(width), 
+      Math.floor(height)
+    );
+    
+    // Player face (different based on state)
+    if (isDucking) {
+      // Ducking face
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(
+        Math.floor(x + width - 15), 
+        Math.floor(y + 5), 
+        10, 
+        5
+      );
+    } else if (isJumping) {
+      // Jumping face
+      ctx.fillStyle = "#FFFFFF";
+      ctx.beginPath();
+      ctx.arc(
+        Math.floor(x + width - 10), 
+        Math.floor(y + 15), 
+        8, 
+        0, 
+        Math.PI * 2
+      );
+      ctx.fill();
+    } else {
+      // Normal face
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(
+        Math.floor(x + width - 15), 
+        Math.floor(y + 15), 
+        10, 
+        5
+      );
+    }
+  };
+  
+  // Draw heads-up display (HUD)
+  const drawHUD = (ctx: CanvasRenderingContext2D) => {
+    // Money counter
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(10, 10, 150, 40);
+    
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "16px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText("Money:", 20, 32);
+    
+    // Calculate current money value based on game state
+    const currentMoney = 1000 + 
+      (gameStateRef.current.collectedCoins * 100) + 
+      (gameStateRef.current.collectedPowerups * 500) - 
+      gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
+    
+    ctx.fillStyle = currentMoney > 0 ? "#4CAF50" : "#F44336";
+    ctx.font = "bold 18px Arial";
+    ctx.fillText(`$${currentMoney}`, 90, 32);
+    
+    // Pause button
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(GAME_WIDTH - 50, 10, 40, 40);
+    
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "16px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("II", GAME_WIDTH - 30, 32);
+    
+    // Debug info
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(10, GAME_HEIGHT - 30, 300, 20);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "left";
+    const player = gameStateRef.current.player;
+    ctx.fillText(`x:${Math.round(player.x)} y:${Math.round(player.y)} vx:${player.velocityX.toFixed(2)} vy:${player.velocityY.toFixed(2)} jump:${player.isJumping}`, 15, GAME_HEIGHT - 15);
+    
+    // Add camera position debug info
+    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+    ctx.fillRect(10, GAME_HEIGHT - 55, 300, 20);
+    ctx.fillStyle = "#FFFFFF";
+    ctx.font = "12px Arial";
+    ctx.textAlign = "left";
+    ctx.fillText(`Camera: ${Math.round(gameStateRef.current.camera.x)} Keys: L:${keys.current.left} R:${keys.current.right} U:${keys.current.up} D:${keys.current.down}`, 15, GAME_HEIGHT - 40);
+  };
+
+  return (
+    <div className="relative w-full flex justify-center">
+      <canvas 
+        ref={canvasRef} 
+        width={GAME_WIDTH} 
+        height={GAME_HEIGHT}
+        id="game-canvas"
+        onClick={(e) => {
+          // Handle pause button click
+          const rect = canvasRef.current?.getBoundingClientRect();
+          if (!rect) return;
+          
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          
+          if (x > GAME_WIDTH - 50 && x < GAME_WIDTH - 10 && y > 10 && y < 50) {
+            setIsPaused(true);
+          }
+        }}
+      />
+      
+      {/* Pause Menu */}
+      {isPaused && !isGameOver && (
+        <PauseMenu 
+          onResume={() => setIsPaused(false)}
+          onRestart={restartGame}
+          onMainMenu={() => {
+            cancelAnimationFrame(requestRef.current);
+            onExit();
+          }}
+        />
+      )}
+      
+      {/* Game Over Screen */}
+      {isGameOver && (
+        <GameOverScreen
+          score={score}
+          isVictory={isVictory}
+          onRestart={restartGame}
+          onMainMenu={() => {
+            cancelAnimationFrame(requestRef.current);
+            onExit();
+          }}
+        />
+      )}
+    </div>
+  );
+};
+
+export default GameEngine;
