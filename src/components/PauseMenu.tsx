@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button";
 
 interface PauseMenuProps {
   onResume: () => void;
-  onRestart?: () => void;
-  onExit: () => void;
+  onRestart: () => void;
+  onMainMenu: () => void;
 }
 
-const PauseMenu: React.FC<PauseMenuProps> = ({ onResume, onRestart, onExit }) => {
+const PauseMenu: React.FC<PauseMenuProps> = ({ onResume, onRestart, onMainMenu }) => {
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-black/50 z-50">
       <div className="glass-panel p-8 w-full max-w-sm mx-auto scale-in">
@@ -19,13 +19,11 @@ const PauseMenu: React.FC<PauseMenuProps> = ({ onResume, onRestart, onExit }) =>
             Resume
           </Button>
           
-          {onRestart && (
-            <Button onClick={onRestart} className="btn-game btn-secondary w-full">
-              Restart Game
-            </Button>
-          )}
+          <Button onClick={onRestart} className="btn-game btn-secondary w-full">
+            Restart Game
+          </Button>
           
-          <Button onClick={onExit} className="btn-game bg-gray-200 text-gray-700 hover:bg-gray-300 w-full">
+          <Button onClick={onMainMenu} className="btn-game bg-gray-200 text-gray-700 hover:bg-gray-300 w-full">
             Main Menu
           </Button>
         </div>
