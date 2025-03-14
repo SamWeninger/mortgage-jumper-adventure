@@ -32,8 +32,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   const [money, setMoney] = useState(1000); // Starting money
   const [score, setScore] = useState(0);
   
-  // Game elements
-  const [gameState, setGameState] = useState({
+  // Create a ref for gameState to prevent stale closures in animation loop
+  const gameStateRef = useRef({
     player: {
       x: 50,
       y: GAME_HEIGHT - 80,
@@ -69,7 +69,10 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     }
   });
   
-  // Keyboard state
+  // Use a separate state to trigger re-renders
+  const [gameState, setGameState] = useState(gameStateRef.current);
+  
+  // Keyboard state as a ref to prevent stale closures
   const keys = useRef({
     left: false,
     right: false,
@@ -214,26 +217,33 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     
     console.log("Level generation complete");
     
-    // Update game state
-    setGameState(prev => ({
-      ...prev,
+    // Reset player position
+    const player = {
+      x: 50,
+      y: GAME_HEIGHT - 80,
+      width: 40,
+      height: 60,
+      velocityX: 0,
+      velocityY: 0,
+      isJumping: false,
+      isDucking: false
+    };
+    
+    // Update game state ref
+    gameStateRef.current = {
+      ...gameStateRef.current,
       platforms,
       coins,
       powerups,
       enemies,
       finishLine,
-      player: {
-        ...prev.player,
-        x: 50,
-        y: GAME_HEIGHT - 80,
-        velocityX: 0,
-        velocityY: 0,
-        isJumping: false,
-        isDucking: false
-      },
+      player,
       camera: { x: 0, y: 0 },
       levelLength: GAME_WIDTH * 3
-    }));
+    };
+    
+    // Update state to trigger re-render
+    setGameState({...gameStateRef.current});
   };
   
   // Handle keyboard events
@@ -320,6 +330,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         
         // Check game over conditions
         checkGameOver();
+        
+        // Update React state occasionally to show debug info
+        if (time % 10 < 1) {
+          setGameState({...gameStateRef.current});
+        }
       }
       
       requestRef.current = requestAnimationFrame(animate);
@@ -349,184 +364,184 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Update player movement
   const updatePlayerMovement = (deltaTime: number) => {
-    // Using functional setState to prevent stale closures
-    setGameState(prev => {
-      const player = { ...prev.player };
+    const player = { ...gameStateRef.current.player };
       
-      // Debug player state before update
-      console.log("Player before update:", 
-        { x: player.x, y: player.y, vx: player.velocityX, vy: player.velocityY, isJumping: player.isJumping });
-      console.log("Keys state:", keys.current);
-      
-      // Horizontal movement
-      if (keys.current.left) {
-        player.velocityX = -5 * deltaTime;
-        console.log("Moving left, new velocityX:", player.velocityX);
-      } else if (keys.current.right) {
-        player.velocityX = 5 * deltaTime;
-        console.log("Moving right, new velocityX:", player.velocityX);
-      } else {
-        // Apply friction
-        player.velocityX *= 0.8;
-      }
-      
-      // Jumping
-      if (keys.current.up && !player.isJumping) {
-        player.velocityY = -15;
-        player.isJumping = true;
-        console.log("Jumping, new velocityY:", player.velocityY);
-      }
-      
-      // Ducking
-      player.isDucking = keys.current.down;
-      if (player.isDucking) {
-        player.height = 30; // Reduce height when ducking
-        console.log("Ducking, height reduced");
-      } else {
-        player.height = 60; // Normal height
-      }
-      
-      // Apply gravity
-      player.velocityY += prev.gravity * deltaTime;
-      
-      // Update position
-      player.x += player.velocityX;
-      player.y += player.velocityY;
-      
-      // Debug player state after update
-      console.log("Player after update:", 
-        { x: player.x, y: player.y, vx: player.velocityX, vy: player.velocityY, isJumping: player.isJumping });
-      
-      // Boundary checks
-      if (player.x < 0) player.x = 0;
-      if (player.x > prev.levelLength - player.width) {
-        player.x = prev.levelLength - player.width;
-      }
-      
-      return { ...prev, player };
-    });
+    // Debug player state before update
+    console.log("Player before update:", 
+      { x: player.x, y: player.y, vx: player.velocityX, vy: player.velocityY, isJumping: player.isJumping });
+    console.log("Keys state:", keys.current);
+    
+    // Horizontal movement
+    if (keys.current.left) {
+      player.velocityX = -5 * deltaTime;
+      console.log("Moving left, new velocityX:", player.velocityX);
+    } else if (keys.current.right) {
+      player.velocityX = 5 * deltaTime;
+      console.log("Moving right, new velocityX:", player.velocityX);
+    } else {
+      // Apply friction
+      player.velocityX *= 0.8;
+    }
+    
+    // Jumping
+    if (keys.current.up && !player.isJumping) {
+      player.velocityY = -15;
+      player.isJumping = true;
+      console.log("Jumping, new velocityY:", player.velocityY);
+    }
+    
+    // Ducking
+    player.isDucking = keys.current.down;
+    if (player.isDucking) {
+      player.height = 30; // Reduce height when ducking
+      console.log("Ducking, height reduced");
+    } else {
+      player.height = 60; // Normal height
+    }
+    
+    // Apply gravity
+    player.velocityY += gameStateRef.current.gravity * deltaTime;
+    
+    // Update position
+    player.x += player.velocityX;
+    player.y += player.velocityY;
+    
+    // Debug player state after update
+    console.log("Player after update:", 
+      { x: player.x, y: player.y, vx: player.velocityX, vy: player.velocityY, isJumping: player.isJumping });
+    
+    // Boundary checks
+    if (player.x < 0) player.x = 0;
+    if (player.x > gameStateRef.current.levelLength - player.width) {
+      player.x = gameStateRef.current.levelLength - player.width;
+    }
+    
+    // Update player in gameStateRef
+    gameStateRef.current.player = player;
   };
   
   // Update camera position to follow player
   const updateCamera = () => {
-    setGameState(prev => {
-      const camera = { ...prev.camera };
-      
-      // Camera follows player with some margin
-      const targetCameraX = Math.max(0, prev.player.x - GAME_WIDTH / 3);
-      
-      // Add camera smoothing - gradually move toward target position
-      camera.x += (targetCameraX - camera.x) * 0.1;
-      
-      // Camera boundaries
-      if (camera.x < 0) camera.x = 0;
-      if (camera.x > prev.levelLength - GAME_WIDTH) {
-        camera.x = prev.levelLength - GAME_WIDTH;
-      }
-      
-      // Update parallax backgrounds
-      const background = {
-        far: { x: camera.x * 0.2 },
-        mid: { x: camera.x * 0.5 },
-        near: { x: camera.x * 0.8 }
-      };
-      
-      // Debug camera position
-      console.log("Camera position:", camera.x, "Player position:", prev.player.x);
-      
-      return { ...prev, camera, background };
-    });
+    const camera = { ...gameStateRef.current.camera };
+    const player = gameStateRef.current.player;
+    
+    // Camera follows player with some margin
+    const targetCameraX = Math.max(0, player.x - GAME_WIDTH / 3);
+    
+    // Add camera smoothing - gradually move toward target position
+    camera.x += (targetCameraX - camera.x) * 0.1;
+    
+    // Camera boundaries
+    if (camera.x < 0) camera.x = 0;
+    if (camera.x > gameStateRef.current.levelLength - GAME_WIDTH) {
+      camera.x = gameStateRef.current.levelLength - GAME_WIDTH;
+    }
+    
+    // Update parallax backgrounds
+    const background = {
+      far: { x: camera.x * 0.2 },
+      mid: { x: camera.x * 0.5 },
+      near: { x: camera.x * 0.8 }
+    };
+    
+    // Debug camera position
+    console.log("Camera position:", camera.x, "Player position:", player.x);
+    
+    // Update camera and background in gameStateRef
+    gameStateRef.current.camera = camera;
+    gameStateRef.current.background = background;
   };
   
   // Update enemies
   const updateEnemies = (deltaTime: number) => {
-    setGameState(prev => {
-      const enemies = prev.enemies.map(enemy => {
-        if (enemy.type === 'crash') {
-          // Market crash enemies move back and forth
-          enemy.x += enemy.velocityX * deltaTime;
-          
-          // Reverse direction if reached range limit
-          if (enemy.x < enemy.startX - enemy.range || enemy.x > enemy.startX) {
-            enemy.velocityX *= -1;
-          }
+    const enemies = gameStateRef.current.enemies.map(enemy => {
+      if (enemy.type === 'crash') {
+        // Market crash enemies move back and forth
+        enemy.x += enemy.velocityX * deltaTime;
+        
+        // Reverse direction if reached range limit
+        if (enemy.x < enemy.startX - enemy.range || enemy.x > enemy.startX) {
+          enemy.velocityX *= -1;
         }
-        return enemy;
-      });
-      
-      return { ...prev, enemies };
+      }
+      return enemy;
     });
+    
+    // Update enemies in gameStateRef
+    gameStateRef.current.enemies = enemies;
   };
   
   // Check for collisions
   const checkCollisions = () => {
-    setGameState(prev => {
-      const player = { ...prev.player };
-      const coins = [...prev.coins];
-      const powerups = [...prev.powerups];
-      const enemies = [...prev.enemies];
-      let newMoney = money;
-      let newScore = score;
-      
-      // Check platform collisions (ground and platforms)
-      let isOnPlatform = false;
-      prev.platforms.forEach(platform => {
-        // Check if player is on platform
-        if (
-          player.x + player.width > platform.x &&
-          player.x < platform.x + platform.width &&
-          player.y + player.height >= platform.y &&
-          player.y + player.height <= platform.y + platform.height &&
-          player.velocityY > 0
-        ) {
-          player.y = platform.y - player.height;
-          player.velocityY = 0;
-          player.isJumping = false;
-          isOnPlatform = true;
-          console.log("Player landed on platform");
-        }
-      });
-      
-      if (!isOnPlatform) {
-        player.isJumping = true;
+    const player = { ...gameStateRef.current.player };
+    const coins = [...gameStateRef.current.coins];
+    const powerups = [...gameStateRef.current.powerups];
+    const enemies = [...gameStateRef.current.enemies];
+    let newMoney = money;
+    let newScore = score;
+    
+    // Check platform collisions (ground and platforms)
+    let isOnPlatform = false;
+    gameStateRef.current.platforms.forEach(platform => {
+      // Check if player is on platform
+      if (
+        player.x + player.width > platform.x &&
+        player.x < platform.x + platform.width &&
+        player.y + player.height >= platform.y &&
+        player.y + player.height <= platform.y + platform.height &&
+        player.velocityY > 0
+      ) {
+        player.y = platform.y - player.height;
+        player.velocityY = 0;
+        player.isJumping = false;
+        isOnPlatform = true;
+        console.log("Player landed on platform");
       }
-      
-      // Check coin collisions
-      coins.forEach((coin, index) => {
-        if (!coin.collected && checkObjectCollision(player, coin)) {
-          coins[index] = { ...coin, collected: true };
-          newMoney += coin.value;
-          newScore += coin.value;
-          setMoney(newMoney);
-          setScore(newScore);
-          console.log(`Coin collected! Money: ${newMoney}, Score: ${newScore}`);
-        }
-      });
-      
-      // Check powerup collisions
-      powerups.forEach((powerup, index) => {
-        if (!powerup.collected && checkObjectCollision(player, powerup)) {
-          powerups[index] = { ...powerup, collected: true };
-          newMoney += powerup.value;
-          newScore += powerup.value;
-          setMoney(newMoney);
-          setScore(newScore);
-          console.log(`Powerup collected! Money: ${newMoney}, Score: ${newScore}`);
-        }
-      });
-      
-      // Check enemy collisions
-      enemies.forEach((enemy, index) => {
-        if (!enemy.hit && checkObjectCollision(player, enemy)) {
-          enemies[index] = { ...enemy, hit: true };
-          newMoney -= enemy.value;
-          setMoney(newMoney);
-          console.log(`Hit enemy! Money reduced to: ${newMoney}`);
-        }
-      });
-      
-      return { ...prev, player, coins, powerups, enemies };
     });
+    
+    if (!isOnPlatform) {
+      player.isJumping = true;
+    }
+    
+    // Check coin collisions
+    coins.forEach((coin, index) => {
+      if (!coin.collected && checkObjectCollision(player, coin)) {
+        coins[index] = { ...coin, collected: true };
+        newMoney += coin.value;
+        newScore += coin.value;
+        setMoney(newMoney);
+        setScore(newScore);
+        console.log(`Coin collected! Money: ${newMoney}, Score: ${newScore}`);
+      }
+    });
+    
+    // Check powerup collisions
+    powerups.forEach((powerup, index) => {
+      if (!powerup.collected && checkObjectCollision(player, powerup)) {
+        powerups[index] = { ...powerup, collected: true };
+        newMoney += powerup.value;
+        newScore += powerup.value;
+        setMoney(newMoney);
+        setScore(newScore);
+        console.log(`Powerup collected! Money: ${newMoney}, Score: ${newScore}`);
+      }
+    });
+    
+    // Check enemy collisions
+    enemies.forEach((enemy, index) => {
+      if (!enemy.hit && checkObjectCollision(player, enemy)) {
+        enemies[index] = { ...enemy, hit: true };
+        newMoney -= enemy.value;
+        setMoney(newMoney);
+        console.log(`Hit enemy! Money reduced to: ${newMoney}`);
+      }
+    });
+    
+    // Update in gameStateRef
+    gameStateRef.current.player = player;
+    gameStateRef.current.coins = coins;
+    gameStateRef.current.powerups = powerups;
+    gameStateRef.current.enemies = enemies;
   };
   
   // Helper to check collision between two objects
@@ -541,7 +556,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Check if player reached the finish line
   const checkFinish = () => {
-    if (gameState.finishLine && checkObjectCollision(gameState.player, gameState.finishLine)) {
+    if (gameStateRef.current.finishLine && 
+        checkObjectCollision(gameStateRef.current.player, gameStateRef.current.finishLine)) {
       setIsGameOver(true);
       setIsVictory(true);
       console.log("Player reached finish line! Victory!");
@@ -551,7 +567,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   // Check game over conditions
   const checkGameOver = () => {
     // Check if player fell into a pit
-    if (gameState.player.y > GAME_HEIGHT) {
+    if (gameStateRef.current.player.y > GAME_HEIGHT) {
       setIsGameOver(true);
       setIsVictory(false);
       console.log("Game over: Player fell into a pit");
@@ -577,7 +593,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.save();
     
     // Apply camera transform - Use Math.floor to prevent subpixel rendering issues
-    ctx.translate(-Math.floor(gameState.camera.x), 0);
+    ctx.translate(-Math.floor(gameStateRef.current.camera.x), 0);
     
     // Draw platforms
     drawPlatforms(ctx);
@@ -617,7 +633,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     // Draw mountains in the far background - Use Math.floor for positions
     ctx.fillStyle = "#9E9E9E";
     for (let i = 0; i < 5; i++) {
-      const x = Math.floor((i * 200) - (gameState.background.far.x % 200));
+      const x = Math.floor((i * 200) - (gameStateRef.current.background.far.x % 200));
       const height = 100 + Math.random() * 50;
       
       ctx.beginPath();
@@ -630,7 +646,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     // Draw hills in the mid background - Use Math.floor for positions
     ctx.fillStyle = "#A5D6A7";
     for (let i = 0; i < 7; i++) {
-      const x = Math.floor((i * 150) - (gameState.background.mid.x % 150));
+      const x = Math.floor((i * 150) - (gameStateRef.current.background.mid.x % 150));
       
       ctx.beginPath();
       ctx.arc(x, GAME_HEIGHT + 30, 80, Math.PI, 0, false);
@@ -640,7 +656,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     // Draw clouds - Use Math.floor for positions
     ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
     for (let i = 0; i < 8; i++) {
-      const x = Math.floor((i * 180) - (gameState.background.far.x % 180));
+      const x = Math.floor((i * 180) - (gameStateRef.current.background.far.x % 180));
       const y = 40 + Math.random() * 50;
       
       // Cloud shape
@@ -654,7 +670,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Draw platforms
   const drawPlatforms = (ctx: CanvasRenderingContext2D) => {
-    gameState.platforms.forEach(platform => {
+    gameStateRef.current.platforms.forEach(platform => {
       // Platform gradient
       const gradient = ctx.createLinearGradient(0, platform.y, 0, platform.y + platform.height);
       gradient.addColorStop(0, "#8D6E63"); // Brown
@@ -692,7 +708,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Draw coins
   const drawCoins = (ctx: CanvasRenderingContext2D) => {
-    gameState.coins.forEach(coin => {
+    gameStateRef.current.coins.forEach(coin => {
       if (!coin.collected) {
         // Coin circle
         ctx.fillStyle = "#FFD700"; // Gold
@@ -733,7 +749,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Draw powerups (mystery boxes)
   const drawPowerups = (ctx: CanvasRenderingContext2D) => {
-    gameState.powerups.forEach(powerup => {
+    gameStateRef.current.powerups.forEach(powerup => {
       if (!powerup.collected) {
         // Mystery box
         ctx.fillStyle = "#673AB7"; // Purple
@@ -769,7 +785,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Draw enemies
   const drawEnemies = (ctx: CanvasRenderingContext2D) => {
-    gameState.enemies.forEach(enemy => {
+    gameStateRef.current.enemies.forEach(enemy => {
       if (!enemy.hit) {
         if (enemy.type === 'luxury') {
           // Luxury Purchase (bag with $ sign)
@@ -826,8 +842,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Draw finish line
   const drawFinishLine = (ctx: CanvasRenderingContext2D) => {
-    if (gameState.finishLine) {
-      const { x, y, width, height } = gameState.finishLine;
+    if (gameStateRef.current.finishLine) {
+      const { x, y, width, height } = gameStateRef.current.finishLine;
       
       // Finish flag
       ctx.fillStyle = "#4CAF50"; // Green
@@ -867,7 +883,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Draw player
   const drawPlayer = (ctx: CanvasRenderingContext2D) => {
-    const { x, y, width, height, isDucking, isJumping } = gameState.player;
+    const { x, y, width, height, isDucking, isJumping } = gameStateRef.current.player;
     
     // Player body
     ctx.fillStyle = "#2196F3"; // Blue
@@ -942,7 +958,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.fillStyle = "#FFFFFF";
     ctx.font = "12px Arial";
     ctx.textAlign = "left";
-    const player = gameState.player;
+    const player = gameStateRef.current.player;
     ctx.fillText(`x:${Math.round(player.x)} y:${Math.round(player.y)} vx:${player.velocityX.toFixed(2)} vy:${player.velocityY.toFixed(2)} jump:${player.isJumping}`, 15, GAME_HEIGHT - 15);
     
     // Add camera position debug info
@@ -951,7 +967,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.fillStyle = "#FFFFFF";
     ctx.font = "12px Arial";
     ctx.textAlign = "left";
-    ctx.fillText(`Camera: ${Math.round(gameState.camera.x)} Keys: L:${keys.current.left} R:${keys.current.right} U:${keys.current.up} D:${keys.current.down}`, 15, GAME_HEIGHT - 40);
+    ctx.fillText(`Camera: ${Math.round(gameStateRef.current.camera.x)} Keys: L:${keys.current.left} R:${keys.current.right} U:${keys.current.up} D:${keys.current.down}`, 15, GAME_HEIGHT - 40);
   };
 
   return (
