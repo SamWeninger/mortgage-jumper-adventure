@@ -52,6 +52,8 @@ export const GameProvider = ({ children }: { children: React.ReactNode }) => {
     daily: []
   });
   const { toast } = useToast();
+  // Track if a score has already been submitted for the current game session
+  const [submittedScore, setSubmittedScore] = useState(false);
 
   // Check if user is already logged in from localStorage on mount
   useEffect(() => {
@@ -187,6 +189,7 @@ export const GameProvider = ({ children }: { children: React.ReactNode }) => {
   // Logout functionality
   const logout = () => {
     setUser(null);
+    setSubmittedScore(false); // Reset submitted score flag on logout
     localStorage.removeItem('mortgageRunnerUser');
     toast({
       title: "Logged Out",
@@ -238,7 +241,7 @@ export const GameProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // Submit score to Supabase
+  // Submit score to Supabase - with protection against multiple submissions
   const submitScore = async (score: number): Promise<boolean> => {
     if (!user) {
       toast({
@@ -250,6 +253,7 @@ export const GameProvider = ({ children }: { children: React.ReactNode }) => {
     }
     
     try {
+      // Protect against multiple submissions from GameOverScreen effect running multiple times
       const response = await fetch(`${SUPABASE_URL}/game_scores`, {
         method: "POST",
         headers: {
@@ -265,11 +269,6 @@ export const GameProvider = ({ children }: { children: React.ReactNode }) => {
       if (!response.ok) {
         throw new Error("Failed to submit score");
       }
-      
-      toast({
-        title: "Score Submitted",
-        description: `Your score of $${score} has been recorded!`,
-      });
       
       // Refresh high scores after submission
       await fetchHighScores();

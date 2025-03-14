@@ -1,7 +1,8 @@
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { useGame } from '@/contexts/GameContext';
+import { useToast } from "@/components/ui/use-toast";
 
 interface GameOverScreenProps {
   score: number;
@@ -17,28 +18,26 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
   onMainMenu 
 }) => {
   const { submitScore } = useGame();
-  const [countdown, setCountdown] = useState(isVictory ? 3 : 0);
+  const { toast } = useToast();
   
   useEffect(() => {
-    // Submit score on victory
+    // Submit score on victory, but only once
     if (isVictory) {
-      submitScore(score);
-      
-      // Auto redirect countdown
-      const timer = setInterval(() => {
-        setCountdown((prev) => {
-          const newCount = prev - 1;
-          if (newCount <= 0) {
-            clearInterval(timer);
-            onMainMenu();
+      // Only submit the score once when the component mounts
+      submitScore(score)
+        .then((success) => {
+          if (success) {
+            toast({
+              title: "Score Submitted",
+              description: `Your score of ${formatScore()} has been recorded!`,
+            });
           }
-          return newCount;
+        })
+        .catch((error) => {
+          console.error("Error submitting score:", error);
         });
-      }, 1000);
-      
-      return () => clearInterval(timer);
     }
-  }, [isVictory, score, submitScore, onMainMenu]);
+  }, []);  // Empty dependency array ensures this runs only once
 
   const formatScore = () => {
     return new Intl.NumberFormat('en-US', {
@@ -58,12 +57,13 @@ const GameOverScreen: React.FC<GameOverScreenProps> = ({
               <p className="text-lg mb-1">Your Score:</p>
               <p className="text-4xl font-bold text-accent">{formatScore()}</p>
             </div>
-            <p className="text-sm text-gray-600 mb-4">
+            <p className="text-sm text-gray-600 mb-6">
               Your score has been submitted to the leaderboard.
             </p>
-            <p className="text-sm text-gray-600">
-              Returning to main menu in {countdown} second{countdown !== 1 ? 's' : ''}...
-            </p>
+            
+            <Button onClick={onMainMenu} className="btn-game btn-primary w-full">
+              Return to Main Menu
+            </Button>
           </>
         ) : (
           <>

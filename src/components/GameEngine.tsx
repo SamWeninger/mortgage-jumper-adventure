@@ -1,6 +1,6 @@
 
 import React, { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useToast } from "@/components/ui/use-toast";
 import PauseMenu from './PauseMenu';
 import GameOverScreen from './GameOverScreen';
 
@@ -23,7 +23,7 @@ interface FinishLine {
 const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>(0);
-  const navigate = useNavigate();
+  const { toast } = useToast();
   
   // Game state
   const [isPaused, setIsPaused] = useState(false);
@@ -51,10 +51,10 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     powerups: [] as any[],
     enemies: [] as any[],
     finishLine: {
-      x: GAME_WIDTH * 3 - 100,
-      y: GAME_HEIGHT - 80,
-      width: 50,
-      height: 60
+      x: GAME_WIDTH * 3 - 100, 
+      y: GAME_HEIGHT - 80, 
+      width: 50, 
+      height: 60 
     } as FinishLine,
     camera: {
       x: 0,
@@ -66,7 +66,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       far: { x: 0 },
       mid: { x: 0 },
       near: { x: 0 }
-    }
+    },
+    collectedCoins: 0,
+    collectedPowerups: 0
   });
   
   // Use a separate state to trigger re-renders
@@ -135,81 +137,165 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   // Generate game level with platforms, coins, powerups, and enemies
   const generateLevel = () => {
     console.log("Generating game level...");
+
+    // Define platform configurations
     const platforms = [
-      // Ground platform
+      // Ground platform (we'll remove parts of it later for gaps)
       { x: 0, y: GAME_HEIGHT - 20, width: GAME_WIDTH * 3, height: 20 }
     ];
     
-    // Add some elevated platforms
-    for (let i = 0; i < 10; i++) {
-      const x = 300 + i * 250 + Math.random() * 100;
-      const y = GAME_HEIGHT - 100 - Math.random() * 100;
-      const width = 80 + Math.random() * 120;
+    // Add evenly spaced elevated platforms
+    for (let i = 0; i < 12; i++) {
+      const x = 250 + i * 200; // More predictable spacing
+      const y = GAME_HEIGHT - 100 - (i % 3) * 30; // Varying heights but in a pattern
+      const width = 100; // Consistent width
       platforms.push({ x, y, width, height: 20 });
     }
     
-    // Add gaps in the ground
-    for (let i = 0; i < 5; i++) {
-      const x = 500 + i * 400 + Math.random() * 200;
-      const width = 60 + Math.random() * 80;
+    // Add controlled gaps in the ground
+    const gaps = [
+      { start: 400, width: 80 },
+      { start: 800, width: 100 },
+      { start: 1200, width: 120 },
+      { start: 1600, width: 100 },
+      { start: 2000, width: 80 }
+    ];
+    
+    // Process ground platform with gaps
+    let currentGround = platforms[0];
+    let newPlatforms = [];
+    
+    for (const gap of gaps) {
+      // End current ground segment before gap
+      const beforeGap = { 
+        ...currentGround, 
+        width: gap.start - currentGround.x 
+      };
+      newPlatforms.push(beforeGap);
       
-      // Remove part of the ground platform for the gap
-      platforms[0] = { ...platforms[0], width: x - platforms[0].x };
-      
-      // Add ground platform after the gap
-      platforms.push({
-        x: x + width,
-        y: GAME_HEIGHT - 20,
-        width: platforms[0].width + GAME_WIDTH * 3 - (x + width),
-        height: 20
-      });
+      // Start new ground segment after gap
+      currentGround = {
+        ...currentGround,
+        x: gap.start + gap.width,
+        width: currentGround.width - (gap.start - currentGround.x) - gap.width
+      };
     }
     
-    // Generate coins
+    // Add the final ground segment
+    newPlatforms.push(currentGround);
+    
+    // Replace the original ground platform with the segmented ones
+    platforms.splice(0, 1, ...newPlatforms);
+    
+    // Generate coins in more organized patterns
     const coins = [];
-    for (let i = 0; i < 40; i++) {
-      const x = 200 + i * 120 + Math.random() * 80;
-      const y = GAME_HEIGHT - 60 - Math.random() * 120;
-      coins.push({ x, y, width: 20, height: 20, value: 100, collected: false });
+    // Rows of coins above platforms
+    for (let i = 1; i < platforms.length; i++) {
+      const platform = platforms[i];
+      const coinCount = Math.min(5, Math.floor(platform.width / 30));
+      const coinSpacing = platform.width / coinCount;
+      
+      for (let j = 0; j < coinCount; j++) {
+        coins.push({
+          x: platform.x + (j * coinSpacing) + (coinSpacing / 2) - 10,
+          y: platform.y - 40,
+          width: 20,
+          height: 20,
+          value: 100,
+          collected: false
+        });
+      }
     }
     
-    // Generate powerups (mystery boxes)
+    // Arc patterns of coins
+    for (let i = 0; i < 5; i++) {
+      const centerX = 300 + i * 400;
+      const centerY = GAME_HEIGHT - 150;
+      const radius = 70;
+      
+      for (let j = 0; j < 7; j++) {
+        const angle = (Math.PI / 7) * j + Math.PI / 14;
+        const x = centerX + Math.cos(angle) * radius;
+        const y = centerY + Math.sin(angle) * radius;
+        
+        coins.push({
+          x: x - 10,
+          y: y - 10,
+          width: 20,
+          height: 20,
+          value: 100,
+          collected: false
+        });
+      }
+    }
+    
+    // Generate powerups (mystery boxes) at strategic locations
     const powerups = [];
-    for (let i = 0; i < 8; i++) {
-      const x = 350 + i * 300 + Math.random() * 100;
-      const y = GAME_HEIGHT - 80 - Math.random() * 100;
-      const value = 250 + Math.floor(Math.random() * 750); // Random value between 250 and 1000
-      powerups.push({ x, y, width: 30, height: 30, value, collected: false });
+    // Place powerups on elevated platforms
+    for (let i = 1; i < platforms.length; i += 2) {
+      const platform = platforms[i];
+      powerups.push({
+        x: platform.x + platform.width / 2 - 15,
+        y: platform.y - 45,
+        width: 30,
+        height: 30,
+        value: 500,
+        collected: false
+      });
     }
     
-    // Generate enemies
+    // Place some special powerups at key locations
+    const specialLocations = [400, 1200, 2000];
+    specialLocations.forEach(x => {
+      powerups.push({
+        x,
+        y: GAME_HEIGHT - 150,
+        width: 30,
+        height: 30,
+        value: 750,
+        collected: false
+      });
+    });
+    
+    // Generate enemies in a more organized pattern
     const enemies = [];
-    // Luxury Purchases (stationary)
-    for (let i = 0; i < 6; i++) {
-      const x = 300 + i * 400 + Math.random() * 200;
-      const y = GAME_HEIGHT - 60;
-      enemies.push({ 
-        x, y, width: 40, height: 40, 
-        type: 'luxury', value: 500, 
-        velocityX: 0, hit: false 
-      });
-    }
     
-    // Market Crashes (moving)
-    for (let i = 0; i < 4; i++) {
-      const x = 600 + i * 550 + Math.random() * 200;
-      const y = GAME_HEIGHT - 60;
+    // Luxury Purchases (stationary) - Placed at strategic points
+    const luxuryPositions = [300, 700, 1100, 1500, 1900];
+    luxuryPositions.forEach(x => {
       enemies.push({ 
-        x, y, width: 50, height: 50, 
-        type: 'crash', value: 1000, 
-        velocityX: -1 - Math.random(), hit: false,
-        startX: x, range: 100 + Math.random() * 100
+        x, 
+        y: GAME_HEIGHT - 60, 
+        width: 40, 
+        height: 40, 
+        type: 'luxury', 
+        value: 250, 
+        velocityX: 0, 
+        hit: false 
       });
-    }
+    });
+    
+    // Market Crashes (moving) - Placed in challenging areas
+    const crashPositions = [500, 900, 1300, 1700, 2100];
+    crashPositions.forEach((x, i) => {
+      const range = 100 + (i * 20); // Increasing range for later enemies
+      enemies.push({ 
+        x, 
+        y: GAME_HEIGHT - 60, 
+        width: 50, 
+        height: 50, 
+        type: 'crash', 
+        value: 400 + (i * 100), // Increasing cost for later enemies
+        velocityX: -1 - (i * 0.2), // Increasing speed for later enemies
+        hit: false,
+        startX: x, 
+        range
+      });
+    });
     
     // Set the finish line
     const finishLine = { 
-      x: GAME_WIDTH * 3 - 100, 
+      x: GAME_WIDTH * 3 - 150, 
       y: GAME_HEIGHT - 80, 
       width: 50, 
       height: 60 
@@ -229,7 +315,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       isDucking: false
     };
     
-    // Update game state ref
+    // Update game state ref with all our new level elements
     gameStateRef.current = {
       ...gameStateRef.current,
       platforms,
@@ -239,7 +325,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       finishLine,
       player,
       camera: { x: 0, y: 0 },
-      levelLength: GAME_WIDTH * 3
+      levelLength: GAME_WIDTH * 3,
+      collectedCoins: 0,
+      collectedPowerups: 0
     };
     
     // Update state to trigger re-render
@@ -334,6 +422,31 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         // Update React state occasionally to show debug info
         if (time % 10 < 1) {
           setGameState({...gameStateRef.current});
+          // Update money state to reflect current game state
+          setMoney(prev => {
+            const calculatedMoney = 1000 + 
+              (gameStateRef.current.collectedCoins * 100) + 
+              (gameStateRef.current.collectedPowerups * 500) - 
+              gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
+            
+            if (prev !== calculatedMoney) {
+              return calculatedMoney;
+            }
+            return prev;
+          });
+          
+          // Update score
+          setScore(prev => {
+            const calculatedScore = 1000 + 
+              (gameStateRef.current.collectedCoins * 100) + 
+              (gameStateRef.current.collectedPowerups * 500) - 
+              gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
+            
+            if (prev !== calculatedScore) {
+              return calculatedScore;
+            }
+            return prev;
+          });
         }
       }
       
@@ -383,21 +496,15 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       player.velocityX *= 0.8;
     }
     
-    // Jumping
+    // Jumping - only allow jumping if not already jumping
     if (keys.current.up && !player.isJumping) {
       player.velocityY = -15;
       player.isJumping = true;
       console.log("Jumping, new velocityY:", player.velocityY);
     }
     
-    // Ducking
+    // Ducking - FIX: Don't change height for ducking anymore to prevent falling through platforms
     player.isDucking = keys.current.down;
-    if (player.isDucking) {
-      player.height = 30; // Reduce height when ducking
-      console.log("Ducking, height reduced");
-    } else {
-      player.height = 60; // Normal height
-    }
     
     // Apply gravity
     player.velocityY += gameStateRef.current.gravity * deltaTime;
@@ -437,11 +544,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       camera.x = gameStateRef.current.levelLength - GAME_WIDTH;
     }
     
-    // Update parallax backgrounds
+    // Update parallax backgrounds - using fixed offsets to prevent jittering
     const background = {
-      far: { x: camera.x * 0.2 },
-      mid: { x: camera.x * 0.5 },
-      near: { x: camera.x * 0.8 }
+      far: { x: Math.floor(camera.x * 0.2) }, // Use Math.floor to prevent subpixel rendering
+      mid: { x: Math.floor(camera.x * 0.5) },
+      near: { x: Math.floor(camera.x * 0.8) }
     };
     
     // Debug camera position
@@ -477,8 +584,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     const coins = [...gameStateRef.current.coins];
     const powerups = [...gameStateRef.current.powerups];
     const enemies = [...gameStateRef.current.enemies];
-    let newMoney = money;
-    let newScore = score;
     
     // Check platform collisions (ground and platforms)
     let isOnPlatform = false;
@@ -503,15 +608,17 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       player.isJumping = true;
     }
     
+    // Track if we collected anything in this frame
+    let coinCollected = false;
+    let powerupCollected = false;
+    
     // Check coin collisions
     coins.forEach((coin, index) => {
       if (!coin.collected && checkObjectCollision(player, coin)) {
         coins[index] = { ...coin, collected: true };
-        newMoney += coin.value;
-        newScore += coin.value;
-        setMoney(newMoney);
-        setScore(newScore);
-        console.log(`Coin collected! Money: ${newMoney}, Score: ${newScore}`);
+        gameStateRef.current.collectedCoins += 1;
+        coinCollected = true;
+        console.log(`Coin collected! Money increased by ${coin.value}`);
       }
     });
     
@@ -519,11 +626,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     powerups.forEach((powerup, index) => {
       if (!powerup.collected && checkObjectCollision(player, powerup)) {
         powerups[index] = { ...powerup, collected: true };
-        newMoney += powerup.value;
-        newScore += powerup.value;
-        setMoney(newMoney);
-        setScore(newScore);
-        console.log(`Powerup collected! Money: ${newMoney}, Score: ${newScore}`);
+        gameStateRef.current.collectedPowerups += 1;
+        powerupCollected = true;
+        console.log(`Powerup collected! Money increased by ${powerup.value}`);
       }
     });
     
@@ -531,11 +636,29 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     enemies.forEach((enemy, index) => {
       if (!enemy.hit && checkObjectCollision(player, enemy)) {
         enemies[index] = { ...enemy, hit: true };
-        newMoney -= enemy.value;
-        setMoney(newMoney);
-        console.log(`Hit enemy! Money reduced to: ${newMoney}`);
+        toast({
+          title: enemy.type === 'luxury' ? "Luxury Purchase!" : "Market Crash!",
+          description: `You lost $${enemy.value}`,
+          variant: "destructive"
+        });
+        console.log(`Hit enemy! Money reduced by: ${enemy.value}`);
       }
     });
+    
+    // Show toast for collectibles
+    if (coinCollected) {
+      toast({
+        title: "Coin Collected!",
+        description: "You gained $100",
+      });
+    }
+    
+    if (powerupCollected) {
+      toast({
+        title: "Bonus Found!",
+        description: "You found a financial bonus!",
+      });
+    }
     
     // Update in gameStateRef
     gameStateRef.current.player = player;
@@ -574,7 +697,12 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     }
     
     // Check if player has no money left
-    if (money <= 0) {
+    const calculatedMoney = 1000 + 
+      (gameStateRef.current.collectedCoins * 100) + 
+      (gameStateRef.current.collectedPowerups * 500) - 
+      gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
+      
+    if (calculatedMoney <= 0) {
       setIsGameOver(true);
       setIsVictory(false);
       console.log("Game over: Player has no money left");
@@ -630,40 +758,40 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
     
-    // Draw mountains in the far background - Use Math.floor for positions
+    // Draw mountains in the far background - Use fixed positions
     ctx.fillStyle = "#9E9E9E";
     for (let i = 0; i < 5; i++) {
-      const x = Math.floor((i * 200) - (gameStateRef.current.background.far.x % 200));
-      const height = 100 + Math.random() * 50;
+      const x = (i * 200) - (gameStateRef.current.background.far.x % 200);
+      const height = 100 + Math.abs(Math.sin(i * 0.7)) * 50; // Use deterministic heights
       
       ctx.beginPath();
-      ctx.moveTo(x - 100, GAME_HEIGHT);
-      ctx.lineTo(x, GAME_HEIGHT - height);
-      ctx.lineTo(x + 100, GAME_HEIGHT);
+      ctx.moveTo(Math.floor(x - 100), GAME_HEIGHT);
+      ctx.lineTo(Math.floor(x), Math.floor(GAME_HEIGHT - height));
+      ctx.lineTo(Math.floor(x + 100), GAME_HEIGHT);
       ctx.fill();
     }
     
-    // Draw hills in the mid background - Use Math.floor for positions
+    // Draw hills in the mid background - Use fixed positions
     ctx.fillStyle = "#A5D6A7";
     for (let i = 0; i < 7; i++) {
-      const x = Math.floor((i * 150) - (gameStateRef.current.background.mid.x % 150));
+      const x = (i * 150) - (gameStateRef.current.background.mid.x % 150);
       
       ctx.beginPath();
-      ctx.arc(x, GAME_HEIGHT + 30, 80, Math.PI, 0, false);
+      ctx.arc(Math.floor(x), GAME_HEIGHT + 30, 80, Math.PI, 0, false);
       ctx.fill();
     }
     
-    // Draw clouds - Use Math.floor for positions
+    // Draw clouds - Use fixed positions
     ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
     for (let i = 0; i < 8; i++) {
-      const x = Math.floor((i * 180) - (gameStateRef.current.background.far.x % 180));
-      const y = 40 + Math.random() * 50;
+      const x = (i * 180) - (gameStateRef.current.background.far.x % 180);
+      const y = 40 + Math.abs(Math.sin(i * 1.3)) * 30; // Use deterministic heights
       
       // Cloud shape
       ctx.beginPath();
-      ctx.arc(x, y, 20, 0, Math.PI * 2);
-      ctx.arc(x + 15, y - 10, 15, 0, Math.PI * 2);
-      ctx.arc(x + 25, y + 5, 18, 0, Math.PI * 2);
+      ctx.arc(Math.floor(x), Math.floor(y), 20, 0, Math.PI * 2);
+      ctx.arc(Math.floor(x + 15), Math.floor(y - 10), 15, 0, Math.PI * 2);
+      ctx.arc(Math.floor(x + 25), Math.floor(y + 5), 18, 0, Math.PI * 2);
       ctx.fill();
     }
   };
@@ -939,9 +1067,15 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.textAlign = "left";
     ctx.fillText("Money:", 20, 32);
     
-    ctx.fillStyle = money > 0 ? "#4CAF50" : "#F44336";
+    // Calculate current money value based on game state
+    const currentMoney = 1000 + 
+      (gameStateRef.current.collectedCoins * 100) + 
+      (gameStateRef.current.collectedPowerups * 500) - 
+      gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
+    
+    ctx.fillStyle = currentMoney > 0 ? "#4CAF50" : "#F44336";
     ctx.font = "bold 18px Arial";
-    ctx.fillText(`$${money}`, 90, 32);
+    ctx.fillText(`$${currentMoney}`, 90, 32);
     
     // Pause button
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
