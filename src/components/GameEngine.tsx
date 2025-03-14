@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import PauseMenu from './PauseMenu';
@@ -82,6 +81,14 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     up: false,
     down: false
   });
+  
+  // Helper function to calculate current money and score
+  const calculateCurrentMoney = () => {
+    return 1000 + 
+      (gameStateRef.current.collectedCoins * 100) + 
+      (gameStateRef.current.collectedPowerups * 500) - 
+      gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
+  };
   
   // Initialize game
   useEffect(() => {
@@ -422,34 +429,15 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         // Check game over conditions
         checkGameOver();
         
-        // Update React state occasionally to show debug info
+        // Update money and score more frequently
+        // This ensures the displayed values are always up-to-date
+        const calculatedMoney = calculateCurrentMoney();
+        setMoney(calculatedMoney);
+        setScore(calculatedMoney);
+        
+        // Update React state occasionally for other game state updates
         if (time % 10 < 1) {
           setGameState({...gameStateRef.current});
-          // Update money state to reflect current game state
-          setMoney(prev => {
-            const calculatedMoney = 1000 + 
-              (gameStateRef.current.collectedCoins * 100) + 
-              (gameStateRef.current.collectedPowerups * 500) - 
-              gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
-            
-            if (prev !== calculatedMoney) {
-              return calculatedMoney;
-            }
-            return prev;
-          });
-          
-          // Update score
-          setScore(prev => {
-            const calculatedScore = 1000 + 
-              (gameStateRef.current.collectedCoins * 100) + 
-              (gameStateRef.current.collectedPowerups * 500) - 
-              gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
-            
-            if (prev !== calculatedScore) {
-              return calculatedScore;
-            }
-            return prev;
-          });
         }
       }
       
@@ -699,6 +687,10 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       // Set the game completed flag to freeze player movement
       gameStateRef.current.gameCompleted = true;
       
+      // Calculate final score once before showing game over screen
+      const finalScore = calculateCurrentMoney();
+      setScore(finalScore);
+      
       // Show game over screen
       setIsGameOver(true);
       setIsVictory(true);
@@ -732,10 +724,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     }
     
     // Check if player has no money left
-    const calculatedMoney = 1000 + 
-      (gameStateRef.current.collectedCoins * 100) + 
-      (gameStateRef.current.collectedPowerups * 500) - 
-      gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
+    const calculatedMoney = calculateCurrentMoney();
       
     if (calculatedMoney <= 0) {
       setIsGameOver(true);
@@ -933,324 +922,4 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         ctx.fillText(
           "$",
           Math.floor(powerup.x + powerup.width / 2),
-          Math.floor(powerup.y + powerup.height / 2 + 6)
-        );
-        
-        // Draw glow effect
-        ctx.strokeStyle = "#B39DDB";
-        ctx.lineWidth = 2;
-        ctx.strokeRect(
-          Math.floor(powerup.x - 2),
-          Math.floor(powerup.y - 2),
-          Math.floor(powerup.width + 4),
-          Math.floor(powerup.height + 4)
-        );
-      }
-    });
-  };
-  
-  // Draw enemies
-  const drawEnemies = (ctx: CanvasRenderingContext2D) => {
-    gameStateRef.current.enemies.forEach(enemy => {
-      if (!enemy.hit) {
-        if (enemy.type === 'luxury') {
-          // Luxury purchase - red square
-          ctx.fillStyle = "#E57373"; // Light red
-          ctx.fillRect(
-            Math.floor(enemy.x),
-            Math.floor(enemy.y),
-            Math.floor(enemy.width),
-            Math.floor(enemy.height)
-          );
-          
-          // Dollar sign
-          ctx.fillStyle = "#FFFFFF";
-          ctx.font = "bold 16px Arial";
-          ctx.textAlign = "center";
-          ctx.fillText(
-            "$$",
-            Math.floor(enemy.x + enemy.width / 2),
-            Math.floor(enemy.y + enemy.height / 2 + 5)
-          );
-        } else {
-          // Market crash - blue triangle
-          ctx.fillStyle = "#42A5F5"; // Light blue
-          
-          // Triangle pointing left for moving enemies
-          ctx.beginPath();
-          ctx.moveTo(Math.floor(enemy.x + enemy.width), Math.floor(enemy.y));
-          ctx.lineTo(Math.floor(enemy.x + enemy.width), Math.floor(enemy.y + enemy.height));
-          ctx.lineTo(Math.floor(enemy.x), Math.floor(enemy.y + enemy.height / 2));
-          ctx.closePath();
-          ctx.fill();
-          
-          // Down arrow symbol
-          ctx.fillStyle = "#FFFFFF";
-          ctx.font = "bold 16px Arial";
-          ctx.textAlign = "center";
-          ctx.fillText(
-            "↓",
-            Math.floor(enemy.x + enemy.width / 2 + 5),
-            Math.floor(enemy.y + enemy.height / 2 + 5)
-          );
-        }
-      }
-    });
-  };
-  
-  // Draw finish line
-  const drawFinishLine = (ctx: CanvasRenderingContext2D) => {
-    const finishLine = gameStateRef.current.finishLine;
-    
-    // Draw checkered pattern
-    const squareSize = 10;
-    const rows = Math.ceil(finishLine.height / squareSize);
-    const cols = Math.ceil(finishLine.width / squareSize);
-    
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const isEven = (row + col) % 2 === 0;
-        ctx.fillStyle = isEven ? "#000000" : "#FFFFFF";
-        ctx.fillRect(
-          Math.floor(finishLine.x + col * squareSize),
-          Math.floor(finishLine.y + row * squareSize),
-          squareSize,
-          squareSize
-        );
-      }
-    }
-    
-    // Draw flag
-    ctx.fillStyle = "#4CAF50"; // Green
-    ctx.fillRect(
-      Math.floor(finishLine.x + finishLine.width / 2 - 2),
-      Math.floor(finishLine.y - 30),
-      4,
-      30
-    );
-    
-    // Flag part
-    ctx.fillStyle = "#F44336"; // Red
-    ctx.beginPath();
-    ctx.moveTo(Math.floor(finishLine.x + finishLine.width / 2), Math.floor(finishLine.y - 30));
-    ctx.lineTo(Math.floor(finishLine.x + finishLine.width / 2 + 20), Math.floor(finishLine.y - 20));
-    ctx.lineTo(Math.floor(finishLine.x + finishLine.width / 2), Math.floor(finishLine.y - 10));
-    ctx.closePath();
-    ctx.fill();
-  };
-  
-  // Draw player
-  const drawPlayer = (ctx: CanvasRenderingContext2D) => {
-    const player = gameStateRef.current.player;
-    
-    // Calculate head position
-    const headX = player.x + player.width / 2;
-    const headY = player.y + player.height / 4;
-    const headRadius = player.width / 2.5;
-    
-    // Draw body
-    ctx.fillStyle = "#4CAF50"; // Green
-    ctx.fillRect(
-      Math.floor(player.x + player.width / 4),
-      Math.floor(player.y + player.height / 2),
-      Math.floor(player.width / 2),
-      Math.floor(player.height / 2)
-    );
-    
-    // Draw head
-    ctx.fillStyle = "#FFA726"; // Orange
-    ctx.beginPath();
-    ctx.arc(
-      Math.floor(headX),
-      Math.floor(headY),
-      headRadius,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-    
-    // Draw eyes
-    ctx.fillStyle = "#FFFFFF";
-    
-    // Left eye
-    ctx.beginPath();
-    ctx.arc(
-      Math.floor(headX - headRadius / 3),
-      Math.floor(headY - headRadius / 5),
-      headRadius / 5,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-    
-    // Right eye
-    ctx.beginPath();
-    ctx.arc(
-      Math.floor(headX + headRadius / 3),
-      Math.floor(headY - headRadius / 5),
-      headRadius / 5,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-    
-    // Draw pupils
-    ctx.fillStyle = "#000000";
-    
-    // Left pupil
-    ctx.beginPath();
-    ctx.arc(
-      Math.floor(headX - headRadius / 3 + (player.velocityX > 0 ? 2 : -2)),
-      Math.floor(headY - headRadius / 5),
-      headRadius / 10,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-    
-    // Right pupil
-    ctx.beginPath();
-    ctx.arc(
-      Math.floor(headX + headRadius / 3 + (player.velocityX > 0 ? 2 : -2)),
-      Math.floor(headY - headRadius / 5),
-      headRadius / 10,
-      0,
-      Math.PI * 2
-    );
-    ctx.fill();
-    
-    // Draw mouth
-    ctx.strokeStyle = "#000000";
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    
-    if (player.isJumping) {
-      // Surprised mouth when jumping
-      ctx.arc(
-        Math.floor(headX),
-        Math.floor(headY + headRadius / 3),
-        headRadius / 6,
-        0,
-        Math.PI * 2
-      );
-    } else {
-      // Smiling mouth when running or standing
-      ctx.arc(
-        Math.floor(headX),
-        Math.floor(headY + headRadius / 5),
-        headRadius / 4,
-        0.2,
-        Math.PI - 0.2
-      );
-    }
-    
-    ctx.stroke();
-    
-    // Draw arms
-    ctx.fillStyle = "#FFA726"; // Orange
-    
-    // Left arm
-    ctx.fillRect(
-      Math.floor(player.x),
-      Math.floor(player.y + player.height / 2),
-      Math.floor(player.width / 4),
-      Math.floor(player.height / 3)
-    );
-    
-    // Right arm
-    ctx.fillRect(
-      Math.floor(player.x + player.width * 0.75),
-      Math.floor(player.y + player.height / 2),
-      Math.floor(player.width / 4),
-      Math.floor(player.height / 3)
-    );
-    
-    // Draw legs
-    ctx.fillStyle = "#1565C0"; // Blue
-    
-    // Left leg
-    ctx.fillRect(
-      Math.floor(player.x + player.width / 4),
-      Math.floor(player.y + player.height - player.height / 4),
-      Math.floor(player.width / 6),
-      Math.floor(player.height / 4)
-    );
-    
-    // Right leg
-    ctx.fillRect(
-      Math.floor(player.x + player.width - player.width / 4 - player.width / 6),
-      Math.floor(player.y + player.height - player.height / 4),
-      Math.floor(player.width / 6),
-      Math.floor(player.height / 4)
-    );
-  };
-  
-  // Draw HUD (heads-up display)
-  const drawHUD = (ctx: CanvasRenderingContext2D) => {
-    // Draw money counter
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(10, 10, 150, 40);
-    
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "bold 16px Arial";
-    ctx.textAlign = "left";
-    ctx.fillText(
-      `Money: $${money}`,
-      20,
-      35
-    );
-    
-    // Draw instructions
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(GAME_WIDTH - 160, 10, 150, 40);
-    
-    ctx.fillStyle = "#FFFFFF";
-    ctx.font = "12px Arial";
-    ctx.textAlign = "right";
-    ctx.fillText(
-      "Press P to pause",
-      GAME_WIDTH - 20,
-      35
-    );
-  };
-  
-  return (
-    <div className="relative">
-      {/* Game canvas */}
-      <canvas 
-        ref={canvasRef} 
-        width={GAME_WIDTH} 
-        height={GAME_HEIGHT}
-        className="border border-gray-300 shadow-lg"
-      />
-      
-      {/* Money display */}
-      <div className="mt-4 flex justify-between items-center">
-        <div className="text-xl">
-          <span className="font-bold">Money:</span> ${money}
-        </div>
-      </div>
-      
-      {/* Pause menu overlay */}
-      {isPaused && (
-        <PauseMenu 
-          onResume={() => setIsPaused(false)} 
-          onRestart={restartGame}
-          onExit={onExit}
-        />
-      )}
-      
-      {/* Game over screen */}
-      {isGameOver && (
-        <GameOverScreen 
-          score={score}
-          isVictory={isVictory}
-          onRestart={restartGame}
-          onMainMenu={onExit}
-        />
-      )}
-    </div>
-  );
-};
-
-export default GameEngine;
+          Math.floor(powerup.y + powerup.height /
