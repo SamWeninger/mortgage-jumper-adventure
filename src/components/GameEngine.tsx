@@ -9,7 +9,7 @@ import { Clock } from 'lucide-react';
 // Game sprites and assets would be imported here in a real implementation
 const GAME_WIDTH = 800;
 const GAME_HEIGHT = 400;
-const LEVEL_LENGTH_MULTIPLIER = 5; // Increased from 3 to 5 for longer level
+const LEVEL_LENGTH_MULTIPLIER = 7; // Increased from 5 to 7 for even longer level
 
 interface GameEngineProps {
   onExit: () => void;
@@ -36,6 +36,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   const [score, setScore] = useState(0);
   const [timeLeft, setTimeLeft] = useState(100); // 100 second timer
   const [isTimeUp, setIsTimeUp] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false); // Track if game has started
+  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null); // Ref for timer interval
   
   // Create a ref for gameState to prevent stale closures in animation loop
   const gameStateRef = useRef({
@@ -47,7 +49,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       velocityX: 0,
       velocityY: 0,
       isJumping: false,
-      isDucking: false
+      isDucking: false,
+      hasMoved: false // Track if player has moved
     },
     platforms: [
       { x: 0, y: GAME_HEIGHT - 20, width: GAME_WIDTH * LEVEL_LENGTH_MULTIPLIER, height: 20 }
@@ -75,7 +78,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     collectedCoins: 0,
     collectedPowerups: 0,
     gameCompleted: false, // Flag to track if the game is completed
-    gameStarted: false // Flag to track if the game has started
+    lastUpdateTime: 0 // Track last update time for window focus handling
   });
   
   // Use a separate state to trigger re-renders
@@ -99,15 +102,31 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   
   // Timer effect
   useEffect(() => {
-    let timer: NodeJS.Timeout | null = null;
-    
-    if (gameStateRef.current.gameStarted && !isPaused && !isGameOver && !gameStateRef.current.gameCompleted) {
-      timer = setInterval(() => {
+    // Clear any existing timer when component unmounts or when dependencies change
+    return () => {
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+    };
+  }, []);
+
+  // Start the timer when player moves
+  useEffect(() => {
+    if (gameStarted && !isPaused && !isGameOver && !gameStateRef.current.gameCompleted) {
+      // Clear any existing timer
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+      
+      // Start a new timer
+      timerIntervalRef.current = setInterval(() => {
         setTimeLeft(prev => {
           const newTime = prev - 1;
           if (newTime <= 0) {
             // Time's up - game over
-            clearInterval(timer as NodeJS.Timeout);
+            if (timerIntervalRef.current) {
+              clearInterval(timerIntervalRef.current);
+            }
             gameStateRef.current.gameCompleted = true;
             setIsGameOver(true);
             setIsVictory(false);
@@ -117,12 +136,50 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
           return newTime;
         });
       }, 1000);
+    } else {
+      // Pause the timer when game is paused
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+        timerIntervalRef.current = null;
+      }
     }
     
+    // Clean up on unmount or dependency change
     return () => {
-      if (timer) clearInterval(timer);
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
     };
-  }, [isPaused, isGameOver, gameStateRef.current.gameStarted, gameStateRef.current.gameCompleted]);
+  }, [gameStarted, isPaused, isGameOver, gameStateRef.current.gameCompleted]);
+  
+  // Window focus/blur handler
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Page is hidden, pause the game
+        if (!isPaused && !isGameOver && !gameStateRef.current.gameCompleted) {
+          setIsPaused(true);
+        }
+      }
+    };
+    
+    // Window blur/focus events
+    const handleBlur = () => {
+      // Save current time when window loses focus
+      gameStateRef.current.lastUpdateTime = performance.now();
+      if (!isPaused && !isGameOver && !gameStateRef.current.gameCompleted) {
+        setIsPaused(true);
+      }
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('blur', handleBlur);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.addEventListener('blur', handleBlur);
+    };
+  }, [isPaused, isGameOver]);
   
   // Initialize game
   useEffect(() => {
@@ -153,6 +210,9 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     
     return () => {
       console.log("Cleaning up game resources...");
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
       cancelAnimationFrame(requestRef.current);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
@@ -170,6 +230,13 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     setIsGameOver(false);
     setIsVictory(false);
     setIsPaused(false);
+    setGameStarted(false);
+    
+    // Clear timer if it exists
+    if (timerIntervalRef.current) {
+      clearInterval(timerIntervalRef.current);
+      timerIntervalRef.current = null;
+    }
     
     // Reset game state
     generateLevel();
@@ -188,24 +255,32 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       { x: 0, y: GAME_HEIGHT - 20, width: GAME_WIDTH * LEVEL_LENGTH_MULTIPLIER, height: 20 }
     ];
     
-    // Add evenly spaced elevated platforms
-    for (let i = 0; i < 18; i++) { // More platforms for longer level
-      const x = 350 + i * 220; // More predictable spacing with larger gaps
-      const y = GAME_HEIGHT - 100 - (i % 3) * 35; // Varying heights with more variation
-      const width = 100; // Consistent width
+    // Add evenly spaced elevated platforms with more variety and greater distances
+    for (let i = 0; i < 25; i++) { // More platforms for longer level
+      // Make platforms less frequent and more spaced out
+      const x = 500 + i * 280; // Larger gaps between platforms
+      
+      // More variation in height
+      const heightVariation = Math.sin(i * 0.7) * 50;
+      const y = GAME_HEIGHT - 100 - (i % 4) * 40 + heightVariation; 
+      
+      // Vary platform width to increase difficulty
+      const width = 70 + (i % 3) * 30; // Some platforms are shorter
+      
       platforms.push({ x, y, width, height: 20 });
     }
     
     // Add controlled gaps in the ground - bigger and more challenging gaps
     const gaps = [
-      { start: 500, width: 100 },
-      { start: 900, width: 120 },
-      { start: 1400, width: 150 },
-      { start: 1800, width: 120 },
-      { start: 2300, width: 170 },
-      { start: 2800, width: 140 },
-      { start: 3300, width: 180 },
-      { start: 3700, width: 120 }
+      { start: 600, width: 120 },
+      { start: 1000, width: 150 },
+      { start: 1600, width: 180 },
+      { start: 2200, width: 200 },
+      { start: 2800, width: 190 },
+      { start: 3400, width: 210 },
+      { start: 4000, width: 220 },
+      { start: 4600, width: 230 },
+      { start: 5200, width: 240 }
     ];
     
     // Process ground platform with gaps
@@ -238,14 +313,14 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     const coins = [];
     
     // Rows of coins above platforms - reduced quantity
-    for (let i = 1; i < platforms.length; i += 2) { // Skip every other platform
+    for (let i = 1; i < platforms.length; i += 3) { // Skip more platforms
       const platform = platforms[i];
-      const coinCount = Math.min(3, Math.floor(platform.width / 40)); // Fewer coins
-      const coinSpacing = platform.width / coinCount;
+      const coinCount = Math.min(2, Math.floor(platform.width / 50)); // Even fewer coins
+      const coinSpacing = platform.width / (coinCount + 1);
       
       for (let j = 0; j < coinCount; j++) {
         coins.push({
-          x: platform.x + (j * coinSpacing) + (coinSpacing / 2) - 10,
+          x: platform.x + ((j+1) * coinSpacing) - 10,
           y: platform.y - 40,
           width: 20,
           height: 20,
@@ -256,13 +331,13 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     }
     
     // Arc patterns of coins - reduced quantity
-    for (let i = 0; i < 6; i++) { // More arcs but spread out
-      const centerX = 400 + i * 600; // More spread out
+    for (let i = 0; i < 5; i++) { // Fewer arcs but more spread out
+      const centerX = 800 + i * 900; // More spread out
       const centerY = GAME_HEIGHT - 150;
       const radius = 70;
       
-      for (let j = 0; j < 5; j++) { // Fewer coins per arc
-        const angle = (Math.PI / 5) * j + Math.PI / 10;
+      for (let j = 0; j < 3; j++) { // Fewer coins per arc
+        const angle = (Math.PI / 3) * j + Math.PI / 6;
         const x = centerX + Math.cos(angle) * radius;
         const y = centerY + Math.sin(angle) * radius;
         
@@ -277,24 +352,24 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       }
     }
     
-    // Generate fewer powerups (mystery boxes) at strategic locations
+    // Generate fewer powerups (mystery boxes) - much rarer now
     const powerups = [];
     
     // Place powerups on elevated platforms - much rarer
-    for (let i = 1; i < platforms.length; i += 5) { // Much fewer powerups
+    for (let i = 1; i < platforms.length; i += 8) { // Much fewer powerups
       const platform = platforms[i];
       powerups.push({
         x: platform.x + platform.width / 2 - 15,
         y: platform.y - 45,
         width: 30,
         height: 30,
-        value: 500, // Base value
+        value: 750, // Higher base value
         collected: false
       });
     }
     
-    // Place some special powerups at key locations - higher value
-    const specialLocations = [1000, 2000, 3000];
+    // Place a couple special powerups at key locations - higher value
+    const specialLocations = [1800, 3600, 5400];
     specialLocations.forEach(x => {
       powerups.push({
         x,
@@ -306,15 +381,25 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       });
     });
     
-    // Generate enemies in a more organized pattern with better spacing
+    // Generate enemies in more strategic and challenging positions
     const enemies = [];
     
     // Luxury Purchases (stationary) - Placed at strategic points
-    const luxuryPositions = [700, 1600, 2500, 3400];
-    luxuryPositions.forEach(x => {
+    const luxuryPositions = [
+      // On platforms
+      800, 1700, 2600, 3700, 4800, 
+      // Near jumps
+      950, 1500, 2300, 3200, 4100
+    ];
+    
+    luxuryPositions.forEach((x, i) => {
+      // Determine if enemy should be placed on a platform or near ground
+      const isOnPlatform = i < 5;
+      const y = isOnPlatform ? GAME_HEIGHT - 140 : GAME_HEIGHT - 60;
+      
       enemies.push({ 
         x, 
-        y: GAME_HEIGHT - 60, 
+        y, 
         width: 40, 
         height: 40, 
         type: 'luxury', 
@@ -325,17 +410,27 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     });
     
     // Market Crashes (moving) - Placed in challenging areas
-    const crashPositions = [1200, 2000, 2800, 3600];
+    const crashPositions = [
+      // Moving in key areas
+      1200, 2000, 2800, 3600, 4400, 5200,
+      // Challenging spots
+      1500, 2400, 3300, 4200, 5000
+    ];
+    
     crashPositions.forEach((x, i) => {
-      const range = 120 + (i * 30); // Increasing range for later enemies
+      // Determine if enemy should be placed on a platform or near ground
+      const isOnPlatform = i >= 6;
+      const y = isOnPlatform ? GAME_HEIGHT - 160 : GAME_HEIGHT - 60;
+      
+      const range = 150 + (i % 6) * 30; // Varying movement ranges
       enemies.push({ 
         x, 
-        y: GAME_HEIGHT - 60, 
+        y, 
         width: 50, 
         height: 50, 
         type: 'crash', 
         value: 1000, // Higher value for market crashes
-        velocityX: -1.5 - (i * 0.3), // Faster movement
+        velocityX: -2 - (i % 3), // Faster movement with variations
         hit: false,
         startX: x, 
         range
@@ -361,7 +456,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       velocityX: 0,
       velocityY: 0,
       isJumping: false,
-      isDucking: false
+      isDucking: false,
+      hasMoved: false
     };
     
     // Update game state ref with all our new level elements
@@ -378,7 +474,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       collectedCoins: 0,
       collectedPowerups: 0,
       gameCompleted: false, // Reset the game completed flag
-      gameStarted: false // Reset the game started flag
+      lastUpdateTime: performance.now() // Initialize with current time
     };
     
     // Update state to trigger re-render
@@ -390,29 +486,28 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     // Don't process key events if game is over or completed
     if (isPaused || isGameOver || gameStateRef.current.gameCompleted) return;
     
-    // Mark the game as started on first key press
-    if (!gameStateRef.current.gameStarted) {
-      gameStateRef.current.gameStarted = true;
-    }
-    
     console.log("Key down:", e.key);
     
     // Game controls
     switch(e.key) {
       case 'ArrowLeft':
         keys.current.left = true;
+        startGameIfNotStarted();
         console.log("Left key pressed, keys state:", keys.current);
         break;
       case 'ArrowRight':
         keys.current.right = true;
+        startGameIfNotStarted();
         console.log("Right key pressed, keys state:", keys.current);
         break;
       case 'ArrowUp':
         keys.current.up = true;
+        startGameIfNotStarted();
         console.log("Up key pressed, keys state:", keys.current);
         break;
       case 'ArrowDown':
         keys.current.down = true;
+        startGameIfNotStarted();
         console.log("Down key pressed, keys state:", keys.current);
         break;
       case 'p':
@@ -420,6 +515,14 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
         setIsPaused(true);
         console.log("Game paused");
         break;
+    }
+  };
+  
+  // Start the game timer when player first moves
+  const startGameIfNotStarted = () => {
+    if (!gameStarted) {
+      setGameStarted(true);
+      gameStateRef.current.player.hasMoved = true;
     }
   };
   
@@ -531,9 +634,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     // Horizontal movement
     if (keys.current.left) {
       player.velocityX = -5 * deltaTime;
+      player.hasMoved = true;
       console.log("Moving left, new velocityX:", player.velocityX);
     } else if (keys.current.right) {
       player.velocityX = 5 * deltaTime;
+      player.hasMoved = true;
       console.log("Moving right, new velocityX:", player.velocityX);
     } else {
       // Apply friction
@@ -544,6 +649,7 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     if (keys.current.up && !player.isJumping) {
       player.velocityY = -15;
       player.isJumping = true;
+      player.hasMoved = true;
       console.log("Jumping, new velocityY:", player.velocityY);
     }
     
@@ -745,6 +851,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       setIsVictory(true);
       console.log("Player reached finish line! Victory!");
       
+      // Stop timer
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+      
       // Ensure all key states are reset
       keys.current = {
         left: false,
@@ -769,6 +880,12 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       setIsGameOver(true);
       setIsVictory(false);
       gameStateRef.current.gameCompleted = true;
+      
+      // Stop timer
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+      
       console.log("Game over: Player fell into a pit");
     }
     
@@ -779,6 +896,12 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       setIsGameOver(true);
       setIsVictory(false);
       gameStateRef.current.gameCompleted = true;
+      
+      // Stop timer
+      if (timerIntervalRef.current) {
+        clearInterval(timerIntervalRef.current);
+      }
+      
       console.log("Game over: Player has no money left");
     }
   };
@@ -1182,6 +1305,20 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.font = "16px Arial";
     ctx.textAlign = "center";
     ctx.fillText("II", GAME_WIDTH - 30, 32);
+    
+    // Game start instructions (only if game hasn't started)
+    if (!gameStarted) {
+      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+      ctx.fillRect(GAME_WIDTH / 2 - 200, GAME_HEIGHT / 2 - 40, 400, 80);
+      
+      ctx.fillStyle = "#FFFFFF";
+      ctx.font = "bold 20px Arial";
+      ctx.textAlign = "center";
+      ctx.fillText("Press Arrow Keys to Start", GAME_WIDTH / 2, GAME_HEIGHT / 2);
+      
+      ctx.font = "16px Arial";
+      ctx.fillText("Timer will begin when you move", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 25);
+    }
   };
 
   return (
