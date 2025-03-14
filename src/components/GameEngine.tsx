@@ -1,4 +1,3 @@
-
 import React, { useEffect, useRef, useState } from 'react';
 import { useToast } from "@/components/ui/use-toast";
 import PauseMenu from './PauseMenu';
@@ -34,10 +33,8 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
   const [isVictory, setIsVictory] = useState(false);
   const [money, setMoney] = useState(1000); // Starting money
   const [score, setScore] = useState(0);
-  const [timeLeft, setTimeLeft] = useState(100); // 100 second timer
   const [isTimeUp, setIsTimeUp] = useState(false);
   const [gameStarted, setGameStarted] = useState(false); // Track if game has started
-  const timerIntervalRef = useRef<NodeJS.Timeout | null>(null); // Ref for timer interval
   
   // Create a ref for gameState to prevent stale closures in animation loop
   const gameStateRef = useRef({
@@ -100,87 +97,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       gameStateRef.current.enemies.filter(e => e.hit).reduce((sum, e) => sum + e.value, 0);
   };
   
-  // Timer effect
-  useEffect(() => {
-    // Clear any existing timer when component unmounts or when dependencies change
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
-  }, []);
-
-  // Start the timer when player moves
-  useEffect(() => {
-    if (gameStarted && !isPaused && !isGameOver && !gameStateRef.current.gameCompleted) {
-      // Clear any existing timer
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-      
-      // Start a new timer
-      timerIntervalRef.current = setInterval(() => {
-        setTimeLeft(prev => {
-          const newTime = prev - 1;
-          if (newTime <= 0) {
-            // Time's up - game over
-            if (timerIntervalRef.current) {
-              clearInterval(timerIntervalRef.current);
-            }
-            gameStateRef.current.gameCompleted = true;
-            setIsGameOver(true);
-            setIsVictory(false);
-            setIsTimeUp(true);
-            return 0;
-          }
-          return newTime;
-        });
-      }, 1000);
-    } else {
-      // Pause the timer when game is paused
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-        timerIntervalRef.current = null;
-      }
-    }
-    
-    // Clean up on unmount or dependency change
-    return () => {
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-    };
-  }, [gameStarted, isPaused, isGameOver, gameStateRef.current.gameCompleted]);
-  
-  // Window focus/blur handler
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        // Page is hidden, pause the game
-        if (!isPaused && !isGameOver && !gameStateRef.current.gameCompleted) {
-          setIsPaused(true);
-        }
-      }
-    };
-    
-    // Window blur/focus events
-    const handleBlur = () => {
-      // Save current time when window loses focus
-      gameStateRef.current.lastUpdateTime = performance.now();
-      if (!isPaused && !isGameOver && !gameStateRef.current.gameCompleted) {
-        setIsPaused(true);
-      }
-    };
-    
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('blur', handleBlur);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.addEventListener('blur', handleBlur);
-    };
-  }, [isPaused, isGameOver]);
-  
   // Initialize game
   useEffect(() => {
     console.log("Game initializing...");
@@ -210,9 +126,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     
     return () => {
       console.log("Cleaning up game resources...");
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
       cancelAnimationFrame(requestRef.current);
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
@@ -225,18 +138,11 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     console.log("Restarting game...");
     setMoney(1000);
     setScore(0);
-    setTimeLeft(100);
     setIsTimeUp(false);
     setIsGameOver(false);
     setIsVictory(false);
     setIsPaused(false);
     setGameStarted(false);
-    
-    // Clear timer if it exists
-    if (timerIntervalRef.current) {
-      clearInterval(timerIntervalRef.current);
-      timerIntervalRef.current = null;
-    }
     
     // Reset game state
     generateLevel();
@@ -851,11 +757,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       setIsVictory(true);
       console.log("Player reached finish line! Victory!");
       
-      // Stop timer
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-      
       // Ensure all key states are reset
       keys.current = {
         left: false,
@@ -881,11 +782,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       setIsVictory(false);
       gameStateRef.current.gameCompleted = true;
       
-      // Stop timer
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
-      
       console.log("Game over: Player fell into a pit");
     }
     
@@ -896,11 +792,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
       setIsGameOver(true);
       setIsVictory(false);
       gameStateRef.current.gameCompleted = true;
-      
-      // Stop timer
-      if (timerIntervalRef.current) {
-        clearInterval(timerIntervalRef.current);
-      }
       
       console.log("Game over: Player has no money left");
     }
@@ -1273,30 +1164,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.font = "bold 18px Arial";
     ctx.fillText(`$${currentMoney}`, 90, 32);
     
-    // Timer
-    ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
-    ctx.fillRect(GAME_WIDTH - 110, 10, 100, 40);
-    
-    // Draw clock icon
-    ctx.fillStyle = "#FFFFFF";
-    ctx.beginPath();
-    ctx.arc(GAME_WIDTH - 90, 30, 12, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(GAME_WIDTH - 90, 30);
-    ctx.lineTo(GAME_WIDTH - 90, 22);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(GAME_WIDTH - 90, 30);
-    ctx.lineTo(GAME_WIDTH - 84, 30);
-    ctx.stroke();
-    
-    // Time display
-    ctx.fillStyle = timeLeft <= 10 ? "#F44336" : "#FFFFFF";
-    ctx.font = "bold 18px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText(`${timeLeft}s`, GAME_WIDTH - 60, 32);
-    
     // Pause button
     ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
     ctx.fillRect(GAME_WIDTH - 50, 10, 40, 40);
@@ -1305,20 +1172,6 @@ const GameEngine: React.FC<GameEngineProps> = ({ onExit }) => {
     ctx.font = "16px Arial";
     ctx.textAlign = "center";
     ctx.fillText("II", GAME_WIDTH - 30, 32);
-    
-    // Game start instructions (only if game hasn't started)
-    if (!gameStarted) {
-      ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-      ctx.fillRect(GAME_WIDTH / 2 - 200, GAME_HEIGHT / 2 - 40, 400, 80);
-      
-      ctx.fillStyle = "#FFFFFF";
-      ctx.font = "bold 20px Arial";
-      ctx.textAlign = "center";
-      ctx.fillText("Press Arrow Keys to Start", GAME_WIDTH / 2, GAME_HEIGHT / 2);
-      
-      ctx.font = "16px Arial";
-      ctx.fillText("Timer will begin when you move", GAME_WIDTH / 2, GAME_HEIGHT / 2 + 25);
-    }
   };
 
   return (
